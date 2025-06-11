@@ -1,9 +1,15 @@
-name: AI Code Complexity Analyzer
+name: AI Code Complexity Analyzer v2
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      file_limit:
+        description: 'Maximum number of files to analyze'
+        required: false
+        default: '5'
+        type: string
 
 jobs:
   analyze:
@@ -16,8 +22,9 @@ jobs:
     - name: Find JavaScript files
       id: find_files
       run: |
-        # Find all JS files (limit to 5 for demo)
-        FILES=$(find . -name "*.js" -type f | head -5 | tr '\n' ' ')
+        # Find all JS files (limit based on input or default to 5)
+        LIMIT=${{ github.event.inputs.file_limit || '5' }}
+        FILES=$(find . -name "*.js" -type f | head -$LIMIT | tr '\n' ' ')
         echo "files=$FILES" >> $GITHUB_OUTPUT
 
     - name: Analyze with AI
@@ -42,32 +49,25 @@ jobs:
           head -n 5 "$file"
           echo "---"
           
-          # Get file content (first 50 lines only to avoid issues) and base64 encode it
-          CONTENT_B64=$(head -n 50 "$file" | base64 -w 0)
-          if [ -z "$CONTENT_B64" ]; then
-            echo "Skipping file with empty content: $file"
-            continue
-          fi
+          # Create a simple analysis without complex JSON escaping
+          echo "Creating analysis for $file..."
           
-          # Create a simple JSON request without complex escaping
+          # Use a simple approach - write to temp files
+          echo "Analyze the code complexity and provide a brief assessment including: complexity score (1-10), main concerns, and improvement suggestions. Be concise." > system_prompt.txt
+          echo "Please analyze this JavaScript code for complexity:" > user_prompt.txt
+          head -n 50 "$file" >> user_prompt.txt
+          
+          # Create JSON using printf to avoid escaping issues  
+          printf '{"model":"%s","messages":[{"role":"system","content":"%s"},{"role":"user","content":"%s"}],"temperature":0.3,"max_tokens":200}' \
+            "${{ secrets.OPENAI_MODEL }}" \
+            "$(cat system_prompt.txt)" \
+            "$(cat user_prompt.txt | tr '\n' ' ' | sed 's/"/\\"/g')" > request.json
+          
+          # Call API
           ANALYSIS=$(curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-            -d '{
-              "model": "'"${{ secrets.OPENAI_MODEL }}"'",
-              "messages": [
-                {
-                  "role": "system",
-                  "content": "Analyze the code complexity and provide a brief assessment including: complexity score (1-10), main concerns, and improvement suggestions. Be concise."
-                },
-                {
-                  "role": "user", 
-                  "content": "Please analyze this base64-encoded JavaScript code for complexity: '"$CONTENT_B64"'"
-                }
-              ],
-              "temperature": 0.3,
-              "max_tokens": 200
-            }' | jq -r '.choices[0].message.content // "Analysis failed"')
+            -d @request.json | jq -r '.choices[0].message.content // "Analysis failed"')
           # Append to results
           echo "## File: \`$file\`" >> analysis_results.md
           echo "" >> analysis_results.md
