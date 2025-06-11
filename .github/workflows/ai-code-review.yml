@@ -37,32 +37,37 @@ jobs:
           fi
           echo "Analyzing $file..."
           
-          # Get file content (first 100 lines) and properly escape it
-          CONTENT=$(head -n 100 "$file" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          if [ -z "$CONTENT" ]; then
+          # Debug: show first few lines of file
+          echo "First 5 lines of $file:"
+          head -n 5 "$file"
+          echo "---"
+          
+          # Get file content (first 50 lines only to avoid issues) and base64 encode it
+          CONTENT_B64=$(head -n 50 "$file" | base64 -w 0)
+          if [ -z "$CONTENT_B64" ]; then
             echo "Skipping file with empty content: $file"
             continue
           fi
           
-          # Call AI API with properly escaped content
+          # Create a simple JSON request without complex escaping
           ANALYSIS=$(curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-            -d "{
-              \"model\": \"${{ secrets.OPENAI_MODEL }}\",
-              \"messages\": [
+            -d '{
+              "model": "'"${{ secrets.OPENAI_MODEL }}"'",
+              "messages": [
                 {
-                  \"role\": \"system\",
-                  \"content\": \"Analyze the code complexity and provide a brief assessment including: complexity score (1-10), main concerns, and improvement suggestions. Be concise.\"
+                  "role": "system",
+                  "content": "Analyze the code complexity and provide a brief assessment including: complexity score (1-10), main concerns, and improvement suggestions. Be concise."
                 },
                 {
-                  \"role\": \"user\",
-                  \"content\": \"Analyze this code:\\n\\n$CONTENT\"
+                  "role": "user", 
+                  "content": "Please analyze this base64-encoded JavaScript code for complexity: '"$CONTENT_B64"'"
                 }
               ],
-              \"temperature\": 0.3,
-              \"max_tokens\": 200
-            }" | jq -r '.choices[0].message.content // "Analysis failed"')
+              "temperature": 0.3,
+              "max_tokens": 200
+            }' | jq -r '.choices[0].message.content // "Analysis failed"')
           # Append to results
           echo "## File: \`$file\`" >> analysis_results.md
           echo "" >> analysis_results.md
