@@ -100,12 +100,12 @@ jobs:
             ERROR_MSG=$(grep -o '"message"[^"]*"[^"]*"' api_response.json | sed 's/"message"[^"]*"//' | sed 's/"$//' | sed 's/^"//')
             ANALYSIS="❌ API Error: $ERROR_MSG"
           else
-            # Try to extract the content
-            ANALYSIS=$(grep -o '"content":"[^"]*"' api_response.json | head -1 | sed 's/"content":"//' | sed 's/"$//')
+            # Try to extract the content and convert \n back to newlines
+            ANALYSIS=$(grep -o '"content":"[^"]*"' api_response.json | head -1 | sed 's/"content":"//' | sed 's/"$//' | sed 's/\\n/\n/g')
             
             # If grep failed, try a different approach
             if [ -z "$ANALYSIS" ]; then
-              ANALYSIS=$(cat api_response.json | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1)
+              ANALYSIS=$(cat api_response.json | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1 | sed 's/\\n/\n/g')
             fi
             
             # Final fallback
@@ -154,7 +154,10 @@ jobs:
         script: |
           const fs = require('fs');
           try {
-            const analysis = fs.readFileSync('analysis_results.md', 'utf8');
+            // Read from the committed file instead of the moved one
+            const files = fs.readdirSync('analysis_reports').filter(f => f.startsWith('code_analysis_'));
+            const latestFile = files.sort().reverse()[0];
+            const analysis = fs.readFileSync(`analysis_reports/${latestFile}`, 'utf8');
             
             // Create a comment on the commit
             await github.rest.repos.createCommitComment({
@@ -165,5 +168,5 @@ jobs:
             });
           } catch (error) {
             console.log('Failed to create commit comment:', error.message);
-            console.log('Analysis results uploaded as artifact instead.');
+            console.log('Analysis results saved to repository instead.');
           }
