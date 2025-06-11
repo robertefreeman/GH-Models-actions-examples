@@ -1,0 +1,40 @@
+name: AI Commit Message Suggester
+
+on:
+  workflow_dispatch:
+    inputs:
+      files_changed:
+        description: 'Files that were changed (comma-separated)'
+        required: true
+        default: 'src/index.js,README.md'
+
+jobs:
+  suggest-commit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Generate commit message
+      run: |
+        # Call OpenAI-compatible API
+        RESPONSE=$(curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+          -d '{
+            "model": "gpt-3.5-turbo",
+            "messages": [
+              {
+                "role": "system",
+                "content": "Generate a concise, conventional commit message based on the changed files. Follow the format: type(scope): description"
+              },
+              {
+                "role": "user",
+                "content": "Generate a commit message for these changed files: ${{ github.event.inputs.files_changed }}"
+              }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 60
+          }')
+        
+        # Extract and display the suggestion
+        echo "🤖 Suggested Commit Message:"
+        echo "$RESPONSE" | jq -r '.choices[0].message.content'
