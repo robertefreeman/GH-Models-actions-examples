@@ -1,0 +1,22 @@
+
+# Panda Cam Status Demo: Rate_Limited
+
+## Visual Representation
+Background Color: lightyellow
+Text Color: darkorange
+Size: 800x600 pixels
+
+## Status Text:
+🐼 Panda Cam | Rate Limited |  | Trying again soon | 22:16 UTC
+
+## Description:
+When too many requests have been made recently
+
+## Technical Details:
+- Generated: 2025-06-11 22:16:00 UTC
+- Status Type: rate_limited
+- Workflow: Enhanced Panda Cam Monitor
+- Method: Dynamic ImageMagick generation in GitHub Actions
+
+---
+This would be a color-coded image in the actual workflow!

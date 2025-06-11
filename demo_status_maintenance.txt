@@ -1,0 +1,22 @@
+
+# Panda Cam Status Demo: Maintenance
+
+## Visual Representation
+Background Color: lightgray
+Text Color: darkred
+Size: 800x600 pixels
+
+## Status Text:
+🐼 Panda Cam | Maintenance |  | Check back later | 22:16 UTC
+
+## Description:
+When webcam is temporarily down or in maintenance
+
+## Technical Details:
+- Generated: 2025-06-11 22:16:00 UTC
+- Status Type: maintenance
+- Workflow: Enhanced Panda Cam Monitor
+- Method: Dynamic ImageMagick generation in GitHub Actions
+
+---
+This would be a color-coded image in the actual workflow!
