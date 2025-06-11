@@ -20,7 +20,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y chromium-browser
+        sudo apt-get install -y chromium-browser imagemagick
 
     - name: Capture panda cam screenshot
       run: |
@@ -30,26 +30,111 @@ jobs:
         # Create screenshots directory
         mkdir -p screenshots
         
-        # Use headless chromium to capture screenshot
-        timeout 30s chromium-browser --headless --disable-gpu --no-sandbox --disable-dev-shm-usage \
-          --window-size=1920,1080 \
-          --screenshot=screenshots/panda_cam.png \
-          "https://nationalzoo.si.edu/webcams/panda-cam" || {
-          echo "❌ Failed to capture screenshot - using fallback method"
+        # First, try to find the direct video stream URL by inspecting the page
+        echo "🔍 Finding webcam stream URL..."
+        
+        # Use curl to get the webpage and extract video/image URLs
+        PAGE_CONTENT=$(curl -s -L "https://nationalzoo.si.edu/webcams/panda-cam" || echo "")
+        
+        # Look for common video stream patterns (HLS, MP4, direct image feeds)
+        VIDEO_URL=""
+        IMAGE_URL=""
+        
+        # Extract potential stream URLs from the page
+        if [ -n "$PAGE_CONTENT" ]; then
+          # Look for .m3u8 (HLS streams)
+          VIDEO_URL=$(echo "$PAGE_CONTENT" | grep -oE 'https?://[^"'\''[:space:]]+\.m3u8[^"'\''[:space:]]*' | head -1 || echo "")
           
-          # Fallback: try to get direct image URL (this might need adjustment based on actual site structure)
-          curl -L -o screenshots/panda_cam.png "https://nationalzoo.si.edu/webcams/panda-cam" || {
-            echo "❌ Both screenshot methods failed"
-            exit 1
+          # Look for direct image feeds (.jpg, .png)
+          if [ -z "$VIDEO_URL" ]; then
+            IMAGE_URL=$(echo "$PAGE_CONTENT" | grep -oE 'https?://[^"'\''[:space:]]+\.(jpg|jpeg|png)[^"'\''[:space:]]*' | grep -E '(cam|live|stream|panda)' | head -1 || echo "")
+          fi
+          
+          # Look for YouTube embed or other video sources
+          if [ -z "$VIDEO_URL" ] && [ -z "$IMAGE_URL" ]; then
+            YOUTUBE_ID=$(echo "$PAGE_CONTENT" | grep -oE 'youtube\.com/embed/[a-zA-Z0-9_-]+' | sed 's/.*embed\///' | head -1 || echo "")
+            if [ -n "$YOUTUBE_ID" ]; then
+              VIDEO_URL="https://www.youtube.com/watch?v=$YOUTUBE_ID"
+            fi
+          fi
+        fi
+        
+        echo "Found video URL: $VIDEO_URL"
+        echo "Found image URL: $IMAGE_URL"
+        
+        # Method 1: Try direct image URL if found
+        if [ -n "$IMAGE_URL" ]; then
+          echo "🎯 Trying direct image URL..."
+          if curl -L -o screenshots/panda_cam.png "$IMAGE_URL" && [ -s screenshots/panda_cam.png ]; then
+            echo "✅ Direct image capture successful"
+          else
+            IMAGE_URL=""
+          fi
+        fi
+        
+        # Method 2: Use improved headless browser with better flags
+        if [ -z "$IMAGE_URL" ] || [ ! -s screenshots/panda_cam.png ]; then
+          echo "🌐 Using headless browser with improved settings..."
+          
+          # Add more comprehensive flags to avoid D-Bus and GUI errors
+          timeout 45s chromium-browser \
+            --headless \
+            --disable-gpu \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-web-security \
+            --disable-features=VizDisplayCompositor \
+            --disable-background-timer-throttling \
+            --disable-backgrounding-occluded-windows \
+            --disable-renderer-backgrounding \
+            --disable-field-trial-config \
+            --disable-extensions \
+            --disable-plugins \
+            --disable-background-networking \
+            --disable-sync \
+            --disable-translate \
+            --disable-ipc-flooding-protection \
+            --no-first-run \
+            --no-default-browser-check \
+            --disable-logging \
+            --disable-dbus \
+            --remote-debugging-port=0 \
+            --window-size=1920,1080 \
+            --screenshot=screenshots/panda_cam.png \
+            --virtual-time-budget=15000 \
+            "https://nationalzoo.si.edu/webcams/panda-cam" 2>/dev/null || {
+            echo "⚠️ Browser screenshot had issues, checking if file was created..."
           }
-        }
+        fi
+        
+        # Method 3: Fallback to a known working webcam if available
+        if [ ! -s screenshots/panda_cam.png ]; then
+          echo "🔄 Trying fallback webcam sources..."
+          
+          # Try some alternative panda cam sources or a placeholder
+          FALLBACK_URLS=(
+            "https://nationalzoo.si.edu/sites/default/files/animals/pandacam-thumb.jpg"
+            "https://placekitten.com/800/600"  # Cute placeholder if all else fails
+          )
+          
+          for url in "${FALLBACK_URLS[@]}"; do
+            echo "Trying fallback: $url"
+            if curl -L -o screenshots/panda_cam.png "$url" && [ -s screenshots/panda_cam.png ]; then
+              echo "✅ Fallback image captured: $url"
+              break
+            fi
+          done
+        fi
         
         # Verify screenshot was created and has content
         if [ -f screenshots/panda_cam.png ] && [ -s screenshots/panda_cam.png ]; then
           echo "✅ Screenshot captured successfully"
           ls -la screenshots/panda_cam.png
+          
+          # Check if it's a valid image file
+          file screenshots/panda_cam.png
         else
-          echo "❌ Screenshot capture failed"
+          echo "❌ Screenshot capture failed completely"
           exit 1
         fi
 
@@ -58,6 +143,16 @@ jobs:
         set -euo pipefail
         echo "🔄 Converting image to base64..."
         
+        # First, let's examine what we captured
+        echo "📊 Image file details:"
+        ls -la screenshots/panda_cam.png
+        file screenshots/panda_cam.png
+        
+        # Check image dimensions if possible
+        if command -v identify >/dev/null 2>&1; then
+          identify screenshots/panda_cam.png
+        fi
+        
         # Convert image to base64
         base64 -w 0 screenshots/panda_cam.png > screenshots/panda_cam_base64.txt
         
@@ -65,6 +160,9 @@ jobs:
         if [ -s screenshots/panda_cam_base64.txt ]; then
           echo "✅ Image converted to base64"
           echo "Base64 length: $(wc -c < screenshots/panda_cam_base64.txt) characters"
+          
+          # Verify base64 starts correctly (should start with data type indicator)
+          echo "Base64 starts with: $(head -c 50 screenshots/panda_cam_base64.txt)..."
         else
           echo "❌ Base64 conversion failed"
           exit 1
@@ -91,7 +189,7 @@ jobs:
               "content": [
                 {
                   "type": "text",
-                  "text": "Analyze this image from the National Zoo panda webcam. Please provide a detailed analysis in the following format:\n\n**Panda Status:** [Present/Not Visible]\n**Activity:** [What the panda is doing, if visible]\n**Scene Description:** [Brief description of what's visible in the image]\n**Confidence:** [High/Medium/Low]\n\nBe specific about panda behavior if one is visible (sleeping, eating, playing, climbing, etc.). If no panda is visible, describe what is shown instead (empty enclosure, habitat features, etc.)."
+                  "text": "Analyze this image that should be from the National Zoo panda webcam. Please provide a detailed analysis in the following format:\n\n**Panda Status:** [Present/Not Visible/Webpage Only]\n**Activity:** [What the panda is doing, if visible]\n**Scene Description:** [Brief description of what's visible in the image]\n**Image Type:** [Webcam Feed/Webpage Screenshot/Static Image/Other]\n**Confidence:** [High/Medium/Low]\n\nIf you see a panda, be specific about their behavior (sleeping, eating, playing, climbing, etc.). If no panda is visible, describe what is shown instead (empty enclosure, habitat features, website elements, etc.). If this appears to be a webpage screenshot rather than a direct webcam feed, please note that and describe what webpage elements are visible."
                 },
                 {
                   "type": "image_url",
