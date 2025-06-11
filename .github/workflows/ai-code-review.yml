@@ -40,7 +40,7 @@ jobs:
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -d "{
-              \"model\": \"${{ env.OPENAI_MODEL }}\",
+              \"model\": \"${{ secrets.OPENAI_MODEL }}\",
               \"messages\": [
                 {
                   \"role\": \"system\",
