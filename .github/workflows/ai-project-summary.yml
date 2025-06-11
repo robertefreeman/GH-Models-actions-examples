@@ -184,10 +184,62 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         
-        # Add and commit the project summary
+        # Fetch latest changes and rebase
+        git fetch origin
+        git rebase origin/main || {
+          echo "⚠️ Rebase failed, trying merge strategy"
+          git rebase --abort
+          git pull --no-edit origin main
+        }
+        
+        # Check if projectsummary.md already exists (after pulling latest)
+        if [ -f "projectsummary.md" ]; then
+          echo "📝 Updating existing projectsummary.md file"
+          COMMIT_MSG="Update AI-generated project summary - $(date +"%Y-%m-%d %H:%M:%S")"
+        else
+          echo "📄 Creating new projectsummary.md file"
+          COMMIT_MSG="Add AI-generated project summary - $(date +"%Y-%m-%d %H:%M:%S")"
+        fi
+        
+        # Check if there are actually changes to commit
+        if git diff --quiet projectsummary.md 2>/dev/null && git ls-files --error-unmatch projectsummary.md >/dev/null 2>&1; then
+          echo "ℹ️ No changes detected in projectsummary.md"
+          exit 0
+        fi
+        
+        # Add and commit the file
         git add projectsummary.md
-        git commit -m "Update AI-generated project summary" || echo "No changes to commit"
-        git push || echo "Failed to push - check repository permissions"
+        git commit -m "$COMMIT_MSG" || {
+          echo "⚠️ No changes to commit"
+          exit 0
+        }
+        
+        # Push with retry logic
+        for i in {1..3}; do
+          if git push origin main; then
+            echo "✅ Successfully pushed project summary to repository"
+            break
+          else
+            echo "⚠️ Push attempt $i failed, retrying..."
+            git fetch origin
+            git rebase origin/main || {
+              echo "⚠️ Rebase failed on retry $i"
+              git rebase --abort
+              git reset --hard HEAD~1
+              git pull --no-edit origin main
+              git add projectsummary.md
+              git commit -m "$COMMIT_MSG" || break
+            }
+            sleep 2
+          fi
+          
+          if [ $i -eq 3 ]; then
+            echo "❌ Failed to push after 3 attempts"
+            exit 1
+          fi
+        done
+        
+        echo "✅ Project summary saved as projectsummary.md in repository root"
 
     - name: Upload summary as artifact
       uses: actions/upload-artifact@v4
