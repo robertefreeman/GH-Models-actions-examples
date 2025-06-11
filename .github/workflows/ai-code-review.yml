@@ -63,11 +63,32 @@ jobs:
             "$(cat system_prompt.txt)" \
             "$(cat user_prompt.txt | tr '\n' ' ' | sed 's/"/\\"/g')" > request.json
           
-          # Call API
-          ANALYSIS=$(curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
+          # Call API and debug the response
+          echo "Calling API..."
+          curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-            -d @request.json | jq -r '.choices[0].message.content // "Analysis failed"')
+            -d @request.json > api_response.json
+          
+          echo "API Response:"
+          cat api_response.json
+          echo "---"
+          
+          # Try to extract content without jq
+          if command -v python3 &> /dev/null; then
+            ANALYSIS=$(python3 -c "
+import json, sys
+try:
+    with open('api_response.json', 'r') as f:
+        data = json.load(f)
+    content = data.get('choices', [{}])[0].get('message', {}).get('content', 'Analysis failed')
+    print(content)
+except Exception as e:
+    print('Python parsing failed: ' + str(e))
+")
+          else
+            ANALYSIS="Analysis failed - no parser available"
+          fi
           # Append to results
           echo "## File: \`$file\`" >> analysis_results.md
           echo "" >> analysis_results.md
