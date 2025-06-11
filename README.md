@@ -47,7 +47,8 @@ To use GitHub Models APIs in this repository, you need a GitHub Personal Access 
    - Copy the generated token and use it as your `OPENAI_API_KEY`.
 
 2. **Get the API Endpoint:**
-   - For GitHub Models, use the endpoint: `https://models.github.ai/inference` as your `OPENAI_API_ENDPOINT`.
+   - For GitHub Models, use the endpoint: `https://models.inference.ai.azure.com` as your `OPENAI_API_ENDPOINT`.
+   - Alternative GitHub Models endpoints may include `https://models.ai.azure.com` or check your GitHub Models dashboard for the correct URL.
 
 3. **Get the Model Name:**
    - For GitHub Models, you can use model names like `openai/gpt-4.1` or `deepseek/DeepSeek-V3-0324`.
@@ -57,7 +58,7 @@ To use GitHub Models APIs in this repository, you need a GitHub Personal Access 
    - In your forked repository, go to **Settings → Secrets and variables → Actions**.
    - Click **New repository secret** for each of the following:
      - `OPENAI_API_KEY`: Paste your PAT here.
-     - `OPENAI_API_ENDPOINT`: Use `https://models.github.ai/inference`.
+     - `OPENAI_API_ENDPOINT`: Use `https://models.inference.ai.azure.com`.
      - `OPENAI_MODEL`: Use your chosen model name (e.g., `openai/gpt-4.1`).
 
 Once these secrets are set, the workflows in this repo will use your GitHub Models API access!

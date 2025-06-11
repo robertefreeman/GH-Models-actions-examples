@@ -69,26 +69,49 @@ jobs:
           
           # Call API and save response
           echo "Calling API..."
-          curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
+          echo "Endpoint: ${{ secrets.OPENAI_API_ENDPOINT }}"
+          echo "Model: ${{ secrets.OPENAI_MODEL }}"
+          
+          # Show the request being sent (without the auth header)
+          echo "Request JSON:"
+          cat request.json
+          echo ""
+          
+          HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-            -d @request.json > api_response.json
+            -d @request.json -o api_response.json)
           
+          echo "HTTP Status: $HTTP_STATUS"
           echo "API Response:"
           cat api_response.json
           echo "---"
           
-          # Simple extraction using grep and sed (avoiding jq)
-          ANALYSIS=$(grep -o '"content":"[^"]*"' api_response.json | head -1 | sed 's/"content":"//' | sed 's/"$//')
-          
-          # If grep failed, try a different approach
-          if [ -z "$ANALYSIS" ]; then
-            ANALYSIS=$(cat api_response.json | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1)
-          fi
-          
-          # Final fallback
-          if [ -z "$ANALYSIS" ]; then
-            ANALYSIS="Analysis failed - could not parse API response"
+          # Check if we got a successful response
+          if [ "$HTTP_STATUS" != "200" ]; then
+            if grep -q '"code":"404"' api_response.json; then
+              ANALYSIS="❌ API Error 404: The endpoint path '/v1/chat/completions' was not found. Please check your OPENAI_API_ENDPOINT secret. For GitHub Models, try 'https://models.inference.ai.azure.com' or the correct endpoint from your GitHub Models dashboard."
+            else
+              ANALYSIS="❌ API call failed with HTTP status $HTTP_STATUS. Check your API endpoint and credentials in repository secrets."
+            fi
+          elif grep -q "<!DOCTYPE html>" api_response.json; then
+            ANALYSIS="❌ Received HTML instead of JSON. This might be a Cloudflare challenge or incorrect endpoint."
+          elif grep -q '"error"' api_response.json; then
+            ERROR_MSG=$(grep -o '"message"[^"]*"[^"]*"' api_response.json | sed 's/"message"[^"]*"//' | sed 's/"$//' | sed 's/^"//')
+            ANALYSIS="❌ API Error: $ERROR_MSG"
+          else
+            # Try to extract the content
+            ANALYSIS=$(grep -o '"content":"[^"]*"' api_response.json | head -1 | sed 's/"content":"//' | sed 's/"$//')
+            
+            # If grep failed, try a different approach
+            if [ -z "$ANALYSIS" ]; then
+              ANALYSIS=$(cat api_response.json | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1)
+            fi
+            
+            # Final fallback
+            if [ -z "$ANALYSIS" ]; then
+              ANALYSIS="❌ Could not parse valid API response - see workflow logs for details"
+            fi
           fi
           # Append to results
           echo "## File: \`$file\`" >> analysis_results.md
