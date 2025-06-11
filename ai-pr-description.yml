@@ -1,0 +1,79 @@
+name: AI PR Description Generator
+
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  generate-description:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Get PR diff
+      id: diff
+      run: |
+        # Get the diff between the PR branch and base branch
+        git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > pr_diff.txt
+        
+        # Limit diff size to avoid token limits
+        head -n 500 pr_diff.txt > pr_diff_limited.txt
+        
+        # Escape the diff for JSON
+        DIFF=$(cat pr_diff_limited.txt | jq -Rs .)
+        echo "diff=$DIFF" >> $GITHUB_OUTPUT
+
+    - name: Generate PR description with AI
+      id: ai_description
+      run: |
+        # Call OpenAI-compatible API
+        RESPONSE=$(curl -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+          -d '{
+            "model": "gpt-3.5-turbo",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a helpful assistant that generates concise, informative pull request descriptions based on code diffs. Include a summary, key changes, and any potential impacts."
+              },
+              {
+                "role": "user",
+                "content": "Generate a pull request description for the following diff:\n\n${{ steps.diff.outputs.diff }}"
+              }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 500
+          }')
+        
+        # Extract the description from the response
+        DESCRIPTION=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+        
+        # Save to file to handle multi-line content
+        echo "$DESCRIPTION" > pr_description.txt
+
+    - name: Update PR description
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const description = fs.readFileSync('pr_description.txt', 'utf8');
+          
+          const currentBody = context.payload.pull_request.body || '';
+          const aiSection = `## 🤖 AI-Generated Summary\n\n${description}\n\n---\n\n`;
+          
+          // Prepend AI description to existing body
+          const newBody = aiSection + currentBody;
+          
+          await github.rest.pulls.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: context.payload.pull_request.number,
+            body: newBody
+          });
