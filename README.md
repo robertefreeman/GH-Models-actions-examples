@@ -2,6 +2,7 @@
 
 [![AI Code Complexity Analyzer](https://github.com/your-org/your-repo/actions/workflows/ai-code-review.yml/badge.svg)](../../actions/workflows/ai-code-review.yml)
 [![AI PR Description Generator](https://github.com/your-org/your-repo/actions/workflows/ai-pr-description.yml/badge.svg)](../../actions/workflows/ai-pr-description.yml)
+[![AI Project Summary Generator](https://github.com/your-org/your-repo/actions/workflows/ai-project-summary.yml/badge.svg)](../../actions/workflows/ai-project-summary.yml)
 
 <!--
 These badges show the status of the last workflow run (success or failure) for each workflow.
@@ -20,6 +21,10 @@ This repository demonstrates how to use AI models (With instructiuon for using G
 - **AI PR Description Generator** (`ai-pr-description.yml`):
   - 📝 Generates informative pull request descriptions based on code diffs using an AI model.
 
+- **AI Project Summary Generator** (`ai-project-summary.yml`):
+  - 📊 Creates a comprehensive project summary (`projectsummary.md`) for AI coding agents.
+  - 🤖 Analyzes project structure, key files, and generates documentation to help AI understand the codebase.
+
 ---
 
 ## ⚡️ Quick Setup
@@ -31,7 +36,12 @@ This repository demonstrates how to use AI models (With instructiuon for using G
      - `OPENAI_API_ENDPOINT`: The OpenAI-compatible API endpoint (e.g., `https://models.github.ai/inference`).
      - `OPENAI_MODEL`: The model name to use (e.g., `gpt-3.5-turbo`).
 
-2. **📄 (Optional) Environment Variables**
+2. **🎮 Running the Workflows**
+   - **AI Code Complexity Analyzer**: Runs automatically on pushes to JavaScript files
+   - **AI PR Description Generator**: Runs automatically when pull requests are opened/updated
+   - **AI Project Summary Generator**: Runs on pushes to main branch or manually via GitHub Actions tab → "Run workflow"
+
+3. **📄 (Optional) Environment Variables**
    - See `.env.example` for reference, but do not commit real secrets.
 
 ---

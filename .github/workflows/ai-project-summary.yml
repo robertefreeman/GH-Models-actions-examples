@@ -1,0 +1,196 @@
+name: AI Project Summary Generator
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      include_patterns:
+        description: 'File patterns to include (comma-separated, e.g., "*.js,*.ts,*.py")'
+        required: false
+        default: '*.js,*.ts,*.py,*.md,*.json,*.yml,*.yaml'
+        type: string
+      max_files:
+        description: 'Maximum number of files to analyze'
+        required: false
+        default: '20'
+        type: string
+
+jobs:
+  generate-summary:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Analyze project structure
+      id: analyze
+      run: |
+        set -euo pipefail
+        
+        # Get input parameters
+        PATTERNS="${{ github.event.inputs.include_patterns || '*.js,*.ts,*.py,*.md,*.json,*.yml,*.yaml' }}"
+        MAX_FILES="${{ github.event.inputs.max_files || '20' }}"
+        
+        echo "Analyzing project structure..."
+        echo "Include patterns: $PATTERNS"
+        echo "Max files: $MAX_FILES"
+        
+        # Create project overview
+        echo "# 🤖 AI Project Summary" > project_overview.md
+        echo "" >> project_overview.md
+        echo "Generated on: $(date)" >> project_overview.md
+        echo "" >> project_overview.md
+        
+        # Get repository name and basic info
+        REPO_NAME=$(basename "$(pwd)")
+        echo "**Repository:** $REPO_NAME" >> project_overview.md
+        echo "" >> project_overview.md
+        
+        # Analyze directory structure
+        echo "## 📁 Project Structure" >> project_overview.md
+        echo "" >> project_overview.md
+        echo '```' >> project_overview.md
+        find . -type f -name ".*" -prune -o -type d -print | head -20 | sort >> project_overview.md
+        echo '```' >> project_overview.md
+        echo "" >> project_overview.md
+        
+        # Find relevant files
+        echo "## 📄 Key Files Found" >> project_overview.md
+        echo "" >> project_overview.md
+        
+        # Convert comma-separated patterns to find arguments
+        IFS=',' read -ra PATTERN_ARRAY <<< "$PATTERNS"
+        FIND_ARGS=""
+        for i in "${!PATTERN_ARRAY[@]}"; do
+          pattern="${PATTERN_ARRAY[$i]}"
+          if [ $i -eq 0 ]; then
+            FIND_ARGS="-name '$pattern'"
+          else
+            FIND_ARGS="$FIND_ARGS -o -name '$pattern'"
+          fi
+        done
+        
+        # Find files and limit results
+        eval "find . -type f \( $FIND_ARGS \) | grep -v '.git' | head -$MAX_FILES" > relevant_files.txt
+        
+        # List found files
+        while IFS= read -r file; do
+          echo "- \`$file\`" >> project_overview.md
+        done < relevant_files.txt
+        
+        echo "" >> project_overview.md
+        echo "Found $(wc -l < relevant_files.txt) relevant files for analysis." >> project_overview.md
+        echo "" >> project_overview.md
+
+    - name: Generate AI analysis
+      run: |
+        set -euo pipefail
+        
+        echo "Starting AI analysis of project files..."
+        
+        # Create the main summary prompt
+        echo "You are an expert software analyst. Analyze this codebase and create a comprehensive summary that helps AI coding agents understand the project. Include: 1) Project purpose and type, 2) Main technologies/frameworks, 3) Key components and their roles, 4) File structure explanation, 5) Important functions/classes and what they do, 6) How different parts interact, 7) Entry points and main workflows. Be detailed but concise." > system_prompt.txt
+        
+        # Start building the user prompt with project overview
+        echo "Analyze this project and provide a comprehensive summary:" > user_prompt.txt
+        echo "" >> user_prompt.txt
+        cat project_overview.md >> user_prompt.txt
+        echo "" >> user_prompt.txt
+        echo "## 📋 File Contents Analysis" >> user_prompt.txt
+        echo "" >> user_prompt.txt
+        
+        # Add file contents (limited to avoid token limits)
+        while IFS= read -r file; do
+          if [ -f "$file" ]; then
+            echo "### File: $file" >> user_prompt.txt
+            echo '```' >> user_prompt.txt
+            # Limit each file to 100 lines to avoid token overflow
+            head -n 100 "$file" >> user_prompt.txt
+            echo '```' >> user_prompt.txt
+            echo "" >> user_prompt.txt
+          fi
+        done < relevant_files.txt
+        
+        # Create JSON request
+        printf '{"model":"%s","messages":[{"role":"system","content":"%s"},{"role":"user","content":"%s"}],"temperature":0.3,"max_tokens":2000}' \
+          "${{ secrets.OPENAI_MODEL }}" \
+          "$(cat system_prompt.txt)" \
+          "$(cat user_prompt.txt | tr '\n' ' ' | sed 's/"/\\"/g')" > request.json
+        
+        # Call AI API
+        echo "Calling AI API for project analysis..."
+        echo "Endpoint: ${{ secrets.OPENAI_API_ENDPOINT }}"
+        echo "Model: ${{ secrets.OPENAI_MODEL }}"
+        
+        HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/chat/completions" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+          -d @request.json -o api_response.json)
+        
+        echo "HTTP Status: $HTTP_STATUS"
+        echo "API Response (first 500 chars):"
+        head -c 500 api_response.json
+        echo ""
+        echo "---"
+        
+        # Parse API response
+        if [ "$HTTP_STATUS" != "200" ]; then
+          if grep -q '"code":"404"' api_response.json; then
+            SUMMARY="❌ API Error 404: The endpoint path '/chat/completions' was not found. Please check your OPENAI_API_ENDPOINT secret."
+          else
+            SUMMARY="❌ API call failed with HTTP status $HTTP_STATUS. Check your API endpoint and credentials in repository secrets."
+          fi
+        elif grep -q "<!DOCTYPE html>" api_response.json; then
+          SUMMARY="❌ Received HTML instead of JSON. This might be a Cloudflare challenge or incorrect endpoint."
+        elif grep -q '"error"' api_response.json; then
+          ERROR_MSG=$(grep -o '"message"[^"]*"[^"]*"' api_response.json | sed 's/"message"[^"]*"//' | sed 's/"$//' | sed 's/^"//')
+          SUMMARY="❌ API Error: $ERROR_MSG"
+        else
+          # Extract content and fix newlines
+          SUMMARY=$(grep -o '"content":"[^"]*"' api_response.json | head -1 | sed 's/"content":"//' | sed 's/"$//' | sed 's/\\n/\n/g')
+          
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY=$(cat api_response.json | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1 | sed 's/\\n/\n/g')
+          fi
+          
+          if [ -z "$SUMMARY" ]; then
+            SUMMARY="❌ Could not parse valid API response - see workflow logs for details"
+          fi
+        fi
+        
+        # Create the final project summary
+        echo "# 🤖 AI Project Summary" > projectsummary.md
+        echo "" >> projectsummary.md
+        echo "**Generated on:** $(date)" >> projectsummary.md
+        echo "**Repository:** $(basename "$(pwd)")" >> projectsummary.md
+        echo "" >> projectsummary.md
+        echo "---" >> projectsummary.md
+        echo "" >> projectsummary.md
+        echo "$SUMMARY" >> projectsummary.md
+        echo "" >> projectsummary.md
+        echo "---" >> projectsummary.md
+        echo "" >> projectsummary.md
+        echo "*This summary was generated by AI to help coding agents understand the project structure and purpose.*" >> projectsummary.md
+
+    - name: Commit project summary to repo
+      run: |
+        # Configure git
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        # Add and commit the project summary
+        git add projectsummary.md
+        git commit -m "Update AI-generated project summary" || echo "No changes to commit"
+        git push || echo "Failed to push - check repository permissions"
+
+    - name: Upload summary as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: project-summary
+        path: projectsummary.md
