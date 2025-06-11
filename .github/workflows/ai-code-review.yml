@@ -36,31 +36,39 @@ jobs:
             continue
           fi
           echo "Analyzing $file..."
-          # Get file content (first 100 lines)
-          CONTENT=$(head -n 100 "$file" | jq -Rs .)
-          if [ -z "$CONTENT" ]; then
+          
+          # Get file content (first 100 lines) and save to temp file
+          head -n 100 "$file" > temp_content.txt
+          if [ ! -s temp_content.txt ]; then
             echo "Skipping file with empty content: $file"
             continue
           fi
+          
+          # Create JSON payload using jq to properly escape content
+          PAYLOAD=$(jq -n \
+            --arg model "${{ secrets.OPENAI_MODEL }}" \
+            --rawfile content temp_content.txt \
+            '{
+              "model": $model,
+              "messages": [
+                {
+                  "role": "system",
+                  "content": "Analyze the code complexity and provide a brief assessment including: complexity score (1-10), main concerns, and improvement suggestions. Be concise."
+                },
+                {
+                  "role": "user",
+                  "content": ("Analyze this code:\n\n" + $content)
+                }
+              ],
+              "temperature": 0.3,
+              "max_tokens": 200
+            }')
+          
           # Call AI API
           ANALYSIS=$(curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-            -d "{
-              \"model\": \"${{ secrets.OPENAI_MODEL }}\",
-              \"messages\": [
-                {
-                  \"role\": \"system\",
-                  \"content\": \"Analyze the code complexity and provide a brief assessment including: complexity score (1-10), main concerns, and improvement suggestions. Be concise.\"
-                },
-                {
-                  \"role\": \"user\",
-                  \"content\": \"Analyze this code:\\n\\n$CONTENT\"
-                }
-              ],
-              \"temperature\": 0.3,
-              \"max_tokens\": 200
-            }" | jq -r '.choices[0].message.content')
+            -d "$PAYLOAD" | jq -r '.choices[0].message.content // "Analysis failed"')
           # Append to results
           echo "## File: \`$file\`" >> analysis_results.md
           echo "" >> analysis_results.md
