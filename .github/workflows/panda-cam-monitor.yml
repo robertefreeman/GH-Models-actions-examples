@@ -373,15 +373,100 @@ jobs:
 
     - name: Update website index.html with latest content
       run: |
-        echo "🌐 Updating website with latest content..."
+        echo "🌐 Updating website with latest panda cam status..."
         
-        # Add panda cam feature to the website if not already present
-        if ! grep -q "Live Panda Cam Analysis" index.html; then
-          sed -i '/The possibilities are endless! You could extend these concepts to:/a\
-                <li>🐼 <strong>Live Webcam Monitoring</strong> - Monitor zoo webcams with AI status analysis</li>' index.html
-        fi
+        # Create a script to update the website
+        cat > update_website.py << 'EOF'
+        import re
+        import os
+        from datetime import datetime
         
-        echo "✅ Website updated successfully"
+        # Read the current panda analysis
+        try:
+            with open('panda_analysis.txt', 'r') as f:
+                analysis = f.read().strip()
+        except:
+            analysis = "Monitoring system active"
+        
+        # Generate status summary
+        timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+        
+        if any(word in analysis.lower() for word in ['present', 'visible', 'panda', 'eating', 'active']):
+            status_summary = f"🐼 Panda spotted! - Last updated: {timestamp}"
+            status_color = "#4caf50"
+        elif any(word in analysis.lower() for word in ['unavailable', 'restricted', 'blocked', 'forbidden']):
+            status_summary = f"📡 Webcam temporarily unavailable - Last updated: {timestamp}"  
+            status_color = "#ff9800"
+        elif any(word in analysis.lower() for word in ['maintenance', 'down', 'error']):
+            status_summary = f"🔧 Webcam under maintenance - Last updated: {timestamp}"
+            status_color = "#f44336"
+        else:
+            status_summary = f"🔄 Currently monitoring - Last updated: {timestamp}"
+            status_color = "#2196f3"
+        
+        # Read the current index.html
+        with open('index.html', 'r') as f:
+            content = f.read()
+        
+        # Remove existing panda status section
+        content = re.sub(
+            r'<!-- LIVE_PANDA_STATUS_START -->.*?<!-- LIVE_PANDA_STATUS_END -->',
+            '',
+            content,
+            flags=re.DOTALL
+        )
+        
+        # Create the new status section
+        status_section = f'''
+            <!-- LIVE_PANDA_STATUS_START -->
+            <div class="highlight-box" style="margin-top: 15px; background: linear-gradient(135deg, #e3f2fd 0%, #f1f8e9 100%); border-left: 4px solid {status_color};">
+                <h4><span class="emoji">🐼</span> Live Panda Cam Status</h4>
+                <p><strong>{status_summary}</strong></p>
+                <div style="font-size: 0.9em; color: #666; margin-top: 10px;">
+                    <em>This status is automatically updated every 30 minutes during zoo hours using AI vision analysis.</em>
+                </div>
+                <div style="margin-top: 10px;">
+                    <a href="https://github.com/robertefreeman/GH-Models-actions-examples/blob/main/webpage/actionsblog.md#-live-panda-cam-analysis" 
+                       style="color: #1976d2; text-decoration: none; font-weight: bold;">→ View detailed analysis</a>
+                </div>
+            </div>
+            <!-- LIVE_PANDA_STATUS_END -->'''
+        
+        # Find the Panda Cam section and add status after it
+        panda_section_pattern = r'(Use case.*?computer vision integration and automated content generation.*?</div>)'
+        if re.search(panda_section_pattern, content, re.DOTALL):
+            content = re.sub(
+                panda_section_pattern,
+                r'\1' + status_section,
+                content,
+                flags=re.DOTALL
+            )
+        
+        # Clean up duplicate panda cam entries in "What's Next" section
+        content = re.sub(r'<li>🐼 Monitor live webcams.*?</li>\s*', '', content)
+        
+        # Add panda cam to "What's Next" if not present
+        if '🐼' not in content or 'What\'s Next' in content:
+            whats_next_pattern = r'(The possibilities are endless! You could extend these concepts to:</p>)'
+            if re.search(whats_next_pattern, content):
+                panda_item = '''
+            <ul>
+                <li>🐼 <strong>Live Webcam Monitoring</strong> - Monitor zoo webcams with AI status analysis (like our panda cam!)</li>'''
+                content = re.sub(
+                    whats_next_pattern,
+                    r'\1' + panda_item,
+                    content
+                )
+        
+        # Write the updated content
+        with open('index.html', 'w') as f:
+            f.write(content)
+        
+        print("✅ Website updated with live panda cam status")
+        EOF
+        
+        # Run the update script
+        python3 update_website.py
 
     - name: Commit and push changes
       run: |
