@@ -1,0 +1,34 @@
+name: github-pages
+url: ""
+baseurl: ""
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+
+# GitHub Pages settings
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Exclude files from processing
+exclude:
+  - .github/
+  - analysis_reports/
+  - sample_js_files/
+  - node_modules/
+  - "*.log"
+
+# Include files that start with underscore
+include:
+  - _pages
+  - _posts
+
+# Site metadata
+title: "GitHub Models Actions Examples"
+description: "Intelligent code automation using GitHub Models within GitHub Actions workflows"
+author: "robertefreeman"
+github_username: "robertefreeman"
+
+# Social links
+github_repo: "https://github.com/robertefreeman/GH-Models-actions-examples"

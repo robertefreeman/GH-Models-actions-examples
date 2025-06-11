@@ -3,6 +3,9 @@
 [![AI Code Complexity Analyzer](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-code-review.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-code-review.yml)
 [![AI PR Description Generator](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-pr-description.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-pr-description.yml)
 [![AI Project Summary Generator](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml)
+[![GitHub Pages](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/deploy-pages.yml)
+
+> 🌐 **Live Demo:** [View the GitHub Pages site](https://robertefreeman.github.io/GH-Models-actions-examples/)
 
 <!--
 These badges show the status of the last workflow run (success or failure) for each workflow.
