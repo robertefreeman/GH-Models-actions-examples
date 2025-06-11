@@ -1,0 +1,482 @@
+name: Panda Cam AI Monitor
+
+on:
+  schedule:
+    # Run every 30 minutes during zoo hours (9 AM - 6 PM EST)
+    - cron: '*/30 13-22 * * *'  # UTC time
+  workflow_dispatch:
+
+jobs:
+  panda-watch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser imagemagick ffmpeg python3-pip
+        
+        # Install yt-dlp for video stream handling
+        pip3 install yt-dlp selenium webdriver-manager
+        
+        # Install Chrome WebDriver for Selenium
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable ffmpeg python3-pip
+        
+        # Install yt-dlp for video stream handling
+        pip3 install yt-dlp selenium webdriver-manager
+
+    - name: Capture panda webcam screenshot
+      run: |
+        echo "Attempting to capture panda webcam..."
+        
+        # Create capture script for HLS video stream
+        cat > capture_video_frame.py << 'EOF'
+        import time
+        import os
+        import requests
+        import subprocess
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from webdriver_manager.chrome import ChromeDriverManager
+        from selenium.webdriver.chrome.service import Service
+        import logging
+        import re
+        
+        # Set up logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
+        
+        def capture_hls_frame():
+            """Capture frame from HLS video stream"""
+            options = Options()
+            options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--window-size=1920,1080')
+            options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+            
+            driver = None
+            try:
+                # Set up Chrome driver
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service, options=options)
+                
+                logger.info("Loading panda cam page...")
+                driver.get("https://nationalzoo.si.edu/webcams/panda-cam")
+                
+                # Wait for page to load
+                time.sleep(10)
+                
+                # Look for video elements
+                video_elements = driver.find_elements(By.TAG_NAME, "video")
+                logger.info(f"Found {len(video_elements)} video elements")
+                
+                if video_elements:
+                    # Try to get the actual video stream URL
+                    for i, video in enumerate(video_elements):
+                        try:
+                            src = video.get_attribute("src")
+                            logger.info(f"Video {i} src: {src}")
+                            
+                            # Check if video is playing
+                            is_playing = driver.execute_script(
+                                "return arguments[0].currentTime > 0 && !arguments[0].paused && !arguments[0].ended && arguments[0].readyState > 2;",
+                                video
+                            )
+                            logger.info(f"Video {i} is playing: {is_playing}")
+                            
+                            if is_playing:
+                                # Scroll to video and capture
+                                driver.execute_script("arguments[0].scrollIntoView(true);", video)
+                                time.sleep(2)
+                                
+                                # Get video position and size
+                                location = video.location
+                                size = video.size
+                                
+                                logger.info(f"Video location: {location}, size: {size}")
+                                
+                                # Take full page screenshot first
+                                driver.save_screenshot("full_page.png")
+                                
+                                # Try to extract HLS manifest URL from page source
+                                page_source = driver.page_source
+                                
+                                # Look for m3u8 URLs in the page source
+                                m3u8_pattern = r'https?://[^\s"\']+\.m3u8[^\s"\']*'
+                                m3u8_urls = re.findall(m3u8_pattern, page_source)
+                                
+                                logger.info(f"Found m3u8 URLs: {m3u8_urls}")
+                                
+                                if m3u8_urls:
+                                    # Try to capture frame using FFmpeg
+                                    for m3u8_url in m3u8_urls:
+                                        try:
+                                            logger.info(f"Attempting to capture frame from: {m3u8_url}")
+                                            
+                                            # Use FFmpeg to capture a frame from HLS stream
+                                            ffmpeg_cmd = [
+                                                'ffmpeg', '-y',
+                                                '-i', m3u8_url,
+                                                '-vframes', '1',
+                                                '-q:v', '2',
+                                                '-f', 'image2',
+                                                'panda_cam_frame.png'
+                                            ]
+                                            
+                                            result = subprocess.run(ffmpeg_cmd, 
+                                                                  capture_output=True, 
+                                                                  text=True, 
+                                                                  timeout=30)
+                                            
+                                            if result.returncode == 0 and os.path.exists('panda_cam_frame.png'):
+                                                logger.info("Successfully captured frame using FFmpeg!")
+                                                return True
+                                            else:
+                                                logger.warning(f"FFmpeg failed: {result.stderr}")
+                                                
+                                        except Exception as e:
+                                            logger.warning(f"FFmpeg capture failed: {e}")
+                                            continue
+                                
+                                # Fallback: crop video area from full screenshot
+                                if os.path.exists("full_page.png"):
+                                    try:
+                                        crop_cmd = [
+                                            'convert', 'full_page.png',
+                                            '-crop', f"{size['width']}x{size['height']}+{location['x']}+{location['y']}",
+                                            'panda_cam_frame.png'
+                                        ]
+                                        subprocess.run(crop_cmd, check=True)
+                                        logger.info("Cropped video area from screenshot")
+                                        return True
+                                    except Exception as e:
+                                        logger.warning(f"Image cropping failed: {e}")
+                        
+                        except Exception as e:
+                            logger.warning(f"Error processing video element {i}: {e}")
+                            continue
+                
+                # Ultimate fallback: full page screenshot
+                logger.info("Using full page screenshot as fallback")
+                driver.save_screenshot("panda_cam_frame.png")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error in capture_hls_frame: {e}")
+                return False
+            
+            finally:
+                if driver:
+                    driver.quit()
+        
+        def fallback_simple_capture():
+            """Simple fallback using basic tools"""
+            try:
+                logger.info("Attempting simple browser capture...")
+                
+                # Try yt-dlp first
+                try:
+                    subprocess.run([
+                        'yt-dlp', '--write-thumbnail',
+                        '--skip-download',
+                        'https://nationalzoo.si.edu/webcams/panda-cam'
+                    ], timeout=30, check=True)
+                    
+                    # Look for downloaded thumbnail
+                    for file in os.listdir('.'):
+                        if file.endswith('.webp') or file.endswith('.jpg'):
+                            os.rename(file, 'panda_cam_frame.png')
+                            logger.info("Used yt-dlp thumbnail")
+                            return True
+                            
+                except Exception as e:
+                    logger.warning(f"yt-dlp failed: {e}")
+                
+                # Browser screenshot fallback
+                subprocess.run([
+                    'chromium-browser', '--headless', '--no-sandbox',
+                    '--disable-dev-shm-usage', '--disable-gpu',
+                    '--window-size=1920,1080',
+                    '--screenshot=panda_cam_frame.png',
+                    'https://nationalzoo.si.edu/webcams/panda-cam'
+                ], timeout=30, check=True)
+                
+                logger.info("Used browser screenshot fallback")
+                return True
+                
+            except Exception as e:
+                logger.error(f"All fallback methods failed: {e}")
+                return False
+        
+        # Main capture logic
+        success = False
+        
+        # Try advanced HLS capture first
+        logger.info("Attempting HLS video frame capture...")
+        success = capture_hls_frame()
+        
+        if not success:
+            logger.info("HLS capture failed, trying fallback methods...")
+            success = fallback_simple_capture()
+        
+        if not success:
+            logger.error("All capture methods failed!")
+            exit(1)
+        
+        # Verify file exists and has reasonable size
+        if os.path.exists('panda_cam_frame.png'):
+            file_size = os.path.getsize('panda_cam_frame.png')
+            logger.info(f"Captured image size: {file_size} bytes")
+            
+            if file_size < 1000:  # Less than 1KB is suspicious
+                logger.warning("Captured image is very small, might be broken")
+        else:
+            logger.error("No image file was created!")
+            exit(1)
+        
+        EOF
+        
+        # Run the capture script
+        python3 capture_video_frame.py
+
+    - name: Convert image to base64
+      run: |
+        set -euo pipefail
+        echo "🔄 Converting image to base64..."
+        
+        # First, let's examine what we captured
+        echo "📊 Image file details:"
+        ls -la panda_cam_frame.png
+        file panda_cam_frame.png
+        
+        # Check image dimensions if possible
+        if command -v identify >/dev/null 2>&1; then
+          identify panda_cam_frame.png
+        fi
+        
+        # Convert image to base64
+        base64 -w 0 panda_cam_frame.png > panda_cam_base64.txt
+        
+        # Check if conversion was successful
+        if [ -s panda_cam_base64.txt ]; then
+          echo "✅ Image converted to base64"
+          echo "Base64 length: $(wc -c < panda_cam_base64.txt) characters"
+          
+          # Verify base64 starts correctly (should start with data type indicator)
+          echo "Base64 starts with: $(head -c 50 panda_cam_base64.txt)..."
+        else
+          echo "❌ Base64 conversion failed"
+          exit 1
+        fi
+
+    - name: Analyze image with AI
+      run: |
+        set -euo pipefail
+        echo "🤖 Analyzing panda cam image with AI..."
+        echo "Timestamp: $(date)"
+        echo "Model: ${{ secrets.OPENAI_MODEL || 'gpt-4o' }}"
+        echo "Endpoint: ${{ secrets.OPENAI_API_ENDPOINT }}"
+        
+        # Read base64 image
+        IMAGE_BASE64=$(cat panda_cam_base64.txt)
+        
+        # Create the API request payload
+        cat > api_request.json << EOF
+        {
+          "model": "${{ secrets.OPENAI_MODEL || 'gpt-4o' }}",
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Analyze this image from the National Zoo panda webcam. I'm using an automated system to capture frames from an HLS video stream and analyze panda activity. Please provide a structured analysis:\n\n**Image Type:** [HLS Video Frame/Browser Screenshot/Static Photo/Error Image]\n**Panda Status:** [Present/Not Visible/Cannot Determine]\n**Activity:** [Detailed description of panda behavior if visible]\n**Environment:** [Indoor/Outdoor enclosure, time of day if apparent]\n**Video Quality:** [Excellent/Good/Fair/Poor/Error]\n**Analysis Confidence:** [High/Medium/Low]\n\n**Summary:** Brief description of current panda cam status for blog readers.\n\nNote: This image was captured using advanced video processing (FFmpeg) to extract frames from HLS streams, with browser screenshot fallback. Look for signs of live video content vs static images vs error pages."
+                },
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "data:image/png;base64,${IMAGE_BASE64}"
+                  }
+                }
+              ]
+            }
+          ],
+          "max_tokens": 300,
+          "temperature": 0.3
+        }
+        EOF
+        
+        # Make API call with proper error handling
+        echo "Making API call..."
+        HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/chat/completions" \
+          -o api_response.json \
+          -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d @api_request.json)
+        
+        echo "HTTP Status: $HTTP_STATUS"
+        
+        if [ "$HTTP_STATUS" = "200" ]; then
+          # Extract the analysis from the response
+          ANALYSIS=$(grep -o '"content":"[^"]*"' api_response.json | sed 's/"content":"//; s/"$//' | sed 's/\\n/\n/g' | sed 's/\\"/"/g')
+          
+          if [ -n "$ANALYSIS" ]; then
+            echo "✅ AI analysis completed successfully"
+            echo "Analysis result:"
+            echo "$ANALYSIS"
+            echo "$ANALYSIS" > panda_analysis.txt
+          else
+            echo "❌ Failed to extract analysis from API response"
+            echo "Response content:"
+            cat api_response.json
+            ANALYSIS="❌ Failed to extract analysis from API response"
+            echo "$ANALYSIS" > panda_analysis.txt
+          fi
+        else
+          echo "❌ API call failed with status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "404" ]; then
+            ANALYSIS="❌ API Error 404: The endpoint path '/chat/completions' was not found. Please check your OPENAI_API_ENDPOINT secret."
+          elif [ "$HTTP_STATUS" = "401" ]; then
+            ANALYSIS="❌ API Error 401: Unauthorized. Please check your OPENAI_API_KEY secret."
+          else
+            ANALYSIS="❌ API Error $HTTP_STATUS: $(cat api_response.json 2>/dev/null || echo 'Unknown error')"
+          fi
+          echo "$ANALYSIS" > panda_analysis.txt
+        fi
+
+    - name: Update actionsblog.md with panda status
+      run: |
+        set -euo pipefail
+        echo "📝 Updating actionsblog.md with panda cam analysis..."
+        
+        ANALYSIS=$(cat panda_analysis.txt)
+        TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S UTC')
+        
+        # Remove any existing panda cam section
+        if grep -q "## 🐼 Live Panda Cam Analysis" webpage/actionsblog.md; then
+          # Remove from the panda cam section to the end of file
+          sed -i '/## 🐼 Live Panda Cam Analysis/,$d' webpage/actionsblog.md
+        fi
+        
+        # Add new panda cam section
+        {
+          echo ""
+          echo "## 🐼 Live Panda Cam Analysis"
+          echo ""
+          echo "*This section is automatically updated every 30 minutes during zoo hours using AI vision analysis.*"
+          echo ""
+          echo "**Last Updated:** $TIMESTAMP"
+          echo ""
+          echo "$ANALYSIS"
+          echo ""
+          echo "$(printf '%s' '---')"
+          echo ""
+          echo "*Powered by GitHub Actions + GitHub Models multimodal AI*"
+          echo ""
+          echo "$(printf '%s' '---')"
+          echo ""
+          echo "🔗 Check out the examples: [github.com/robertefreeman/GH-Models-actions-examples](https://github.com/robertefreeman/GH-Models-actions-examples)"
+          echo ""
+          echo "#GitHubActions #AI #DevOps #Automation #OpenAI #GitHubModels #CICD #DeveloperTools #PandaCam #ComputerVision"
+        } >> webpage/actionsblog.md
+
+        echo "✅ actionsblog.md updated successfully"
+
+    - name: Update website index.html with latest content
+      run: |
+        set -euo pipefail
+        echo "🌐 Updating website with latest blog content..."
+        
+        # Check if the current index.html needs updating with panda cam content
+        # We'll add a simple update to indicate the blog has new content
+        if ! grep -q "Live Panda Cam Analysis" index.html; then
+          # Add a note about the panda cam feature in the website
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S UTC')
+          
+          # Add panda cam info to the "What's Next?" section
+          sed -i '/The possibilities are endless! You could extend these concepts to:/a\
+                <li>🐼 Monitor live webcams with AI vision analysis (like our panda cam example!)</li>' index.html
+        fi
+        
+        echo "✅ Website updated successfully"
+
+    - name: Commit and push changes
+      run: |
+        set -euo pipefail
+        echo "📤 Committing panda cam analysis updates..."
+        
+        # Configure git
+        git config --local user.email "action@github.com"
+        git config --local user.name "Panda Cam AI Monitor"
+        
+        # Add changes
+        git add webpage/actionsblog.md index.html
+        
+        # Check if there are changes to commit
+        if ! git diff --staged --quiet; then
+          # Create commit message with panda status
+          PANDA_STATUS="Unknown"
+          if grep -q "Panda Status.*Present" panda_analysis.txt; then
+            PANDA_STATUS="🐼 Panda spotted!"
+          elif grep -q "Panda Status.*Not Visible" panda_analysis.txt; then
+            PANDA_STATUS="🌿 No panda visible"
+          fi
+          
+          # Create multi-line commit message
+          git commit -m "🐼 Panda Cam Update: $PANDA_STATUS" \
+                     -m "Automated AI analysis of National Zoo panda webcam" \
+                     -m "Updated actionsblog.md with latest panda status" \
+                     -m "Analysis timestamp: $(date '+%Y-%m-%d %H:%M:%S UTC')" \
+                     -m "Powered by GitHub Models multimodal AI" \
+                     -m "[skip ci]"
+          
+          # Push changes with retry logic
+          for i in {1..3}; do
+            if git push origin main; then
+              echo "✅ Changes pushed successfully"
+              break
+            else
+              echo "⚠️ Push attempt $i failed, retrying..."
+              if [ $i -eq 3 ]; then
+                echo "❌ Failed to push after 3 attempts"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
+        else
+          echo "ℹ️ No changes to commit"
+        fi
+
+    - name: Create panda watch summary
+      run: |
+        echo "## 🐼 Panda Cam Analysis Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Timestamp:** $(date '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### AI Analysis Result:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        cat panda_analysis.txt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 [View Updated Blog](https://github.com/${{ github.repository }}/blob/main/webpage/actionsblog.md)" >> $GITHUB_STEP_SUMMARY
+
+    - name: Cleanup
+      run: |
+        # Clean up temporary files
+        rm -f panda_cam_base64.txt api_request.json api_response.json panda_analysis.txt full_page.png
+        echo "🧹 Cleanup completed"
