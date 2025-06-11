@@ -20,146 +20,238 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y chromium-browser imagemagick
+        sudo apt-get install -y chromium-browser imagemagick ffmpeg python3-pip
+        
+        # Install yt-dlp for video stream handling
+        pip3 install yt-dlp selenium webdriver-manager
+        
+        # Install Chrome WebDriver for Selenium
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable ffmpeg python3-pip
+        
+        # Install yt-dlp for video stream handling
+        pip3 install yt-dlp selenium webdriver-manager
 
-    - name: Capture panda cam screenshot
+    - name: Capture panda webcam screenshot
       run: |
-        set -euo pipefail
-        echo "🐼 Capturing screenshot from National Zoo panda cam..."
+        echo "Attempting to capture panda webcam..."
         
-        # Create screenshots directory
-        mkdir -p screenshots
+        # Create capture script for HLS video stream
+        cat > capture_video_frame.py << 'EOF'
+        import time
+        import os
+        import requests
+        import subprocess
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from webdriver_manager.chrome import ChromeDriverManager
+        from selenium.webdriver.chrome.service import Service
+        import logging
+        import re
         
-        # Method 1: Try to get the actual webcam feed URL by analyzing the page structure
-        echo "🔍 Analyzing National Zoo webcam page structure..."
+        # Set up logging
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger(__name__)
         
-        # Download the webpage and look for embedded video sources
-        curl -s -L "https://nationalzoo.si.edu/webcams/panda-cam" > webpage.html
-        
-        # Look for various webcam patterns in the HTML
-        echo "📡 Searching for webcam streams..."
-        
-        # Check for YouTube live streams (most likely for National Zoo)
-        YOUTUBE_ID=$(grep -oE 'youtube\.com/embed/[a-zA-Z0-9_-]+' webpage.html | sed 's/.*embed\///' | head -1 || echo "")
-        if [ -n "$YOUTUBE_ID" ]; then
-          echo "Found YouTube stream: $YOUTUBE_ID"
-          # For YouTube, we'll use youtube-dl or a screenshot approach
-          YOUTUBE_URL="https://www.youtube.com/watch?v=$YOUTUBE_ID"
-          echo "YouTube URL: $YOUTUBE_URL"
-        fi
-        
-        # Look for direct video streams
-        VIDEO_STREAM=$(grep -oE 'https?://[^"'\''[:space:]]+\.(m3u8|mp4)[^"'\''[:space:]]*' webpage.html | head -1 || echo "")
-        if [ -n "$VIDEO_STREAM" ]; then
-          echo "Found video stream: $VIDEO_STREAM"
-        fi
-        
-        # Look for direct image feeds
-        CAM_IMAGE=$(grep -oE 'https?://[^"'\''[:space:]]+\.(jpg|jpeg|png)[^"'\''[:space:]]*' webpage.html | grep -iE '(cam|live|panda|stream)' | head -1 || echo "")
-        if [ -n "$CAM_IMAGE" ]; then
-          echo "Found camera image: $CAM_IMAGE"
-        fi
-        
-        # Method 2: Try known National Zoo webcam endpoints
-        echo "🎯 Trying known webcam endpoints..."
-        
-        WEBCAM_URLS=(
-          "https://www.zoo.si.edu/sites/default/files/webcams/panda-cam.jpg"
-          "https://nationalzoo.si.edu/sites/default/files/webcams/panda-cam.jpg"
-          "https://s3.amazonaws.com/nationalzoo-webcams/panda-cam.jpg"
-          "https://assets.nationalzoo.si.edu/webcams/panda-cam.jpg"
-          "$CAM_IMAGE"
-        )
-        
-        SUCCESS=false
-        for url in "${WEBCAM_URLS[@]}"; do
-          if [ -n "$url" ]; then
-            echo "Trying: $url"
-            if curl -f -L -o screenshots/panda_cam.png "$url" 2>/dev/null && [ -s screenshots/panda_cam.png ]; then
-              echo "✅ Successfully captured from: $url"
-              SUCCESS=true
-              break
-            fi
-          fi
-        done
-        
-        # Method 3: Use headless browser with better approach for YouTube or complex sites
-        if [ "$SUCCESS" = false ] && [ -n "$YOUTUBE_ID" ]; then
-          echo "🌐 Using browser to capture YouTube livestream..."
-          
-          # Create a simple HTML page that embeds the YouTube video
-          cat > youtube_embed.html << EOF
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body { margin: 0; padding: 0; background: black; }
-                iframe { width: 100vw; height: 100vh; border: none; }
-            </style>
-        </head>
-        <body>
-            <iframe src="https://www.youtube.com/embed/${YOUTUBE_ID}?autoplay=1&mute=1" allowfullscreen></iframe>
-        </body>
-        </html>
-        EOF
-          
-          # Use browser to screenshot the embedded video
-          timeout 60s chromium-browser \
-            --headless \
-            --disable-gpu \
-            --no-sandbox \
-            --disable-dev-shm-usage \
-            --disable-web-security \
-            --autoplay-policy=no-user-gesture-required \
-            --window-size=1280,720 \
-            --screenshot=screenshots/panda_cam.png \
-            --virtual-time-budget=20000 \
-            file://$(pwd)/youtube_embed.html 2>/dev/null || true
+        def capture_hls_frame():
+            """Capture frame from HLS video stream"""
+            options = Options()
+            options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--window-size=1920,1080')
+            options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
             
-          if [ -s screenshots/panda_cam.png ]; then
-            echo "✅ YouTube screenshot captured"
-            SUCCESS=true
-          fi
-        fi
+            driver = None
+            try:
+                # Set up Chrome driver
+                service = Service(ChromeDriverManager().install())
+                driver = webdriver.Chrome(service=service, options=options)
+                
+                logger.info("Loading panda cam page...")
+                driver.get("https://nationalzoo.si.edu/webcams/panda-cam")
+                
+                # Wait for page to load
+                time.sleep(10)
+                
+                # Look for video elements
+                video_elements = driver.find_elements(By.TAG_NAME, "video")
+                logger.info(f"Found {len(video_elements)} video elements")
+                
+                if video_elements:
+                    # Try to get the actual video stream URL
+                    for i, video in enumerate(video_elements):
+                        try:
+                            src = video.get_attribute("src")
+                            logger.info(f"Video {i} src: {src}")
+                            
+                            # Check if video is playing
+                            is_playing = driver.execute_script(
+                                "return arguments[0].currentTime > 0 && !arguments[0].paused && !arguments[0].ended && arguments[0].readyState > 2;",
+                                video
+                            )
+                            logger.info(f"Video {i} is playing: {is_playing}")
+                            
+                            if is_playing:
+                                # Scroll to video and capture
+                                driver.execute_script("arguments[0].scrollIntoView(true);", video)
+                                time.sleep(2)
+                                
+                                # Get video position and size
+                                location = video.location
+                                size = video.size
+                                
+                                logger.info(f"Video location: {location}, size: {size}")
+                                
+                                # Take full page screenshot first
+                                driver.save_screenshot("full_page.png")
+                                
+                                # Try to extract HLS manifest URL from page source
+                                page_source = driver.page_source
+                                
+                                # Look for m3u8 URLs in the page source
+                                m3u8_pattern = r'https?://[^\s"\']+\.m3u8[^\s"\']*'
+                                m3u8_urls = re.findall(m3u8_pattern, page_source)
+                                
+                                logger.info(f"Found m3u8 URLs: {m3u8_urls}")
+                                
+                                if m3u8_urls:
+                                    # Try to capture frame using FFmpeg
+                                    for m3u8_url in m3u8_urls:
+                                        try:
+                                            logger.info(f"Attempting to capture frame from: {m3u8_url}")
+                                            
+                                            # Use FFmpeg to capture a frame from HLS stream
+                                            ffmpeg_cmd = [
+                                                'ffmpeg', '-y',
+                                                '-i', m3u8_url,
+                                                '-vframes', '1',
+                                                '-q:v', '2',
+                                                '-f', 'image2',
+                                                'panda_cam_frame.png'
+                                            ]
+                                            
+                                            result = subprocess.run(ffmpeg_cmd, 
+                                                                  capture_output=True, 
+                                                                  text=True, 
+                                                                  timeout=30)
+                                            
+                                            if result.returncode == 0 and os.path.exists('panda_cam_frame.png'):
+                                                logger.info("Successfully captured frame using FFmpeg!")
+                                                return True
+                                            else:
+                                                logger.warning(f"FFmpeg failed: {result.stderr}")
+                                                
+                                        except Exception as e:
+                                            logger.warning(f"FFmpeg capture failed: {e}")
+                                            continue
+                                
+                                # Fallback: crop video area from full screenshot
+                                if os.path.exists("full_page.png"):
+                                    try:
+                                        crop_cmd = [
+                                            'convert', 'full_page.png',
+                                            '-crop', f"{size['width']}x{size['height']}+{location['x']}+{location['y']}",
+                                            'panda_cam_frame.png'
+                                        ]
+                                        subprocess.run(crop_cmd, check=True)
+                                        logger.info("Cropped video area from screenshot")
+                                        return True
+                                    except Exception as e:
+                                        logger.warning(f"Image cropping failed: {e}")
+                        
+                        except Exception as e:
+                            logger.warning(f"Error processing video element {i}: {e}")
+                            continue
+                
+                # Ultimate fallback: full page screenshot
+                logger.info("Using full page screenshot as fallback")
+                driver.save_screenshot("panda_cam_frame.png")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Error in capture_hls_frame: {e}")
+                return False
+            
+            finally:
+                if driver:
+                    driver.quit()
         
-        # Method 4: Fallback to a working placeholder that looks like a webcam
-        if [ "$SUCCESS" = false ]; then
-          echo "🔄 Using fallback image sources..."
-          
-          FALLBACK_URLS=(
-            "https://nationalzoo.si.edu/sites/default/files/animals/giant-panda-mei-xiang-1.jpg"
-            "https://nationalzoo.si.edu/sites/default/files/animals/pandacam-thumb.jpg"
-            "https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"
-          )
-          
-          for url in "${FALLBACK_URLS[@]}"; do
-            echo "Trying fallback: $url"
-            if curl -f -L -o screenshots/panda_cam.png "$url" 2>/dev/null && [ -s screenshots/panda_cam.png ]; then
-              echo "✅ Fallback image captured: $url"
-              SUCCESS=true
-              break
-            fi
-          done
-        fi
+        def fallback_simple_capture():
+            """Simple fallback using basic tools"""
+            try:
+                logger.info("Attempting simple browser capture...")
+                
+                # Try yt-dlp first
+                try:
+                    subprocess.run([
+                        'yt-dlp', '--write-thumbnail',
+                        '--skip-download',
+                        'https://nationalzoo.si.edu/webcams/panda-cam'
+                    ], timeout=30, check=True)
+                    
+                    # Look for downloaded thumbnail
+                    for file in os.listdir('.'):
+                        if file.endswith('.webp') or file.endswith('.jpg'):
+                            os.rename(file, 'panda_cam_frame.png')
+                            logger.info("Used yt-dlp thumbnail")
+                            return True
+                            
+                except Exception as e:
+                    logger.warning(f"yt-dlp failed: {e}")
+                
+                # Browser screenshot fallback
+                subprocess.run([
+                    'chromium-browser', '--headless', '--no-sandbox',
+                    '--disable-dev-shm-usage', '--disable-gpu',
+                    '--window-size=1920,1080',
+                    '--screenshot=panda_cam_frame.png',
+                    'https://nationalzoo.si.edu/webcams/panda-cam'
+                ], timeout=30, check=True)
+                
+                logger.info("Used browser screenshot fallback")
+                return True
+                
+            except Exception as e:
+                logger.error(f"All fallback methods failed: {e}")
+                return False
         
-        # Final verification
-        if [ -f screenshots/panda_cam.png ] && [ -s screenshots/panda_cam.png ]; then
-          echo "✅ Screenshot captured successfully"
-          ls -la screenshots/panda_cam.png
-          file screenshots/panda_cam.png
-        else
-          echo "❌ All capture methods failed"
-          # Create a simple error image as last resort
-          echo "Creating error placeholder..."
-          convert -size 800x600 xc:lightgray -pointsize 36 -fill black -gravity center \
-            -annotate +0+0 "Panda Cam\nTemporarily\nUnavailable" screenshots/panda_cam.png || {
-            echo "❌ Could not create placeholder image"
-            exit 1
-          }
-        fi
+        # Main capture logic
+        success = False
         
-        # Cleanup
-        rm -f webpage.html youtube_embed.html
+        # Try advanced HLS capture first
+        logger.info("Attempting HLS video frame capture...")
+        success = capture_hls_frame()
+        
+        if not success:
+            logger.info("HLS capture failed, trying fallback methods...")
+            success = fallback_simple_capture()
+        
+        if not success:
+            logger.error("All capture methods failed!")
+            exit(1)
+        
+        # Verify file exists and has reasonable size
+        if os.path.exists('panda_cam_frame.png'):
+            file_size = os.path.getsize('panda_cam_frame.png')
+            logger.info(f"Captured image size: {file_size} bytes")
+            
+            if file_size < 1000:  # Less than 1KB is suspicious
+                logger.warning("Captured image is very small, might be broken")
+        else:
+            logger.error("No image file was created!")
+            exit(1)
+        
+        EOF
+        
+        # Run the capture script
+        python3 capture_video_frame.py
 
     - name: Convert image to base64
       run: |
@@ -168,24 +260,24 @@ jobs:
         
         # First, let's examine what we captured
         echo "📊 Image file details:"
-        ls -la screenshots/panda_cam.png
-        file screenshots/panda_cam.png
+        ls -la panda_cam_frame.png
+        file panda_cam_frame.png
         
         # Check image dimensions if possible
         if command -v identify >/dev/null 2>&1; then
-          identify screenshots/panda_cam.png
+          identify panda_cam_frame.png
         fi
         
         # Convert image to base64
-        base64 -w 0 screenshots/panda_cam.png > screenshots/panda_cam_base64.txt
+        base64 -w 0 panda_cam_frame.png > panda_cam_base64.txt
         
         # Check if conversion was successful
-        if [ -s screenshots/panda_cam_base64.txt ]; then
+        if [ -s panda_cam_base64.txt ]; then
           echo "✅ Image converted to base64"
-          echo "Base64 length: $(wc -c < screenshots/panda_cam_base64.txt) characters"
+          echo "Base64 length: $(wc -c < panda_cam_base64.txt) characters"
           
           # Verify base64 starts correctly (should start with data type indicator)
-          echo "Base64 starts with: $(head -c 50 screenshots/panda_cam_base64.txt)..."
+          echo "Base64 starts with: $(head -c 50 panda_cam_base64.txt)..."
         else
           echo "❌ Base64 conversion failed"
           exit 1
@@ -200,7 +292,7 @@ jobs:
         echo "Endpoint: ${{ secrets.OPENAI_API_ENDPOINT }}"
         
         # Read base64 image
-        IMAGE_BASE64=$(cat screenshots/panda_cam_base64.txt)
+        IMAGE_BASE64=$(cat panda_cam_base64.txt)
         
         # Create the API request payload
         cat > api_request.json << EOF
@@ -212,7 +304,7 @@ jobs:
               "content": [
                 {
                   "type": "text",
-                  "text": "Analyze this image related to the National Zoo panda webcam. Please provide a detailed analysis:\n\n**Image Source:** [Live Webcam/Static Photo/YouTube Stream/Error Message/Other]\n**Panda Status:** [Present/Not Visible/Cannot Determine]\n**Activity:** [What the panda is doing, if visible]\n**Scene Description:** [Detailed description of what's visible]\n**Image Quality:** [Live Feed/High Quality Photo/Low Quality/Placeholder/Error]\n**Confidence:** [High/Medium/Low]\n\nNote: This image may be from a live webcam feed, a static photo, a YouTube livestream screenshot, or a fallback image. Please identify which type it appears to be and analyze accordingly. If you see pandas, describe their behavior in detail. If it's not a live feed, please note what type of image it appears to be."
+                  "text": "Analyze this image from the National Zoo panda webcam. I'm using an automated system to capture frames from an HLS video stream and analyze panda activity. Please provide a structured analysis:\n\n**Image Type:** [HLS Video Frame/Browser Screenshot/Static Photo/Error Image]\n**Panda Status:** [Present/Not Visible/Cannot Determine]\n**Activity:** [Detailed description of panda behavior if visible]\n**Environment:** [Indoor/Outdoor enclosure, time of day if apparent]\n**Video Quality:** [Excellent/Good/Fair/Poor/Error]\n**Analysis Confidence:** [High/Medium/Low]\n\n**Summary:** Brief description of current panda cam status for blog readers.\n\nNote: This image was captured using advanced video processing (FFmpeg) to extract frames from HLS streams, with browser screenshot fallback. Look for signs of live video content vs static images vs error pages."
                 },
                 {
                   "type": "image_url",
@@ -386,5 +478,5 @@ jobs:
     - name: Cleanup
       run: |
         # Clean up temporary files
-        rm -f screenshots/panda_cam_base64.txt api_request.json api_response.json panda_analysis.txt
+        rm -f panda_cam_base64.txt api_request.json api_response.json panda_analysis.txt full_page.png
         echo "🧹 Cleanup completed"
