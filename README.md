@@ -3,6 +3,7 @@
 [![AI Code Complexity Analyzer](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-code-review.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-code-review.yml)
 [![AI PR Description Generator](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-pr-description.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-pr-description.yml)
 [![AI Project Summary Generator](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml)
+[![Panda Cam AI Monitor](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/panda-cam-monitor.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/panda-cam-monitor.yml)
 [![GitHub Pages](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/deploy-pages.yml)
 
 > 🌐 **Live Demo:** [View the GitHub Pages site](https://robertefreeman.github.io/GH-Models-actions-examples/)
@@ -29,6 +30,11 @@ This repository demonstrates how to use **GitHub Models** within GitHub Actions 
   - 📊 Creates comprehensive project documentation (`projectsummary.md`) using GitHub Models.
   - 🤖 Analyzes codebase structure and generates intelligent documentation for AI coding agents.
 
+- **Panda Cam AI Monitor** (`panda-cam-monitor.yml`):
+  - 🐼 Uses computer vision to monitor the National Zoo panda webcam every 30 minutes.
+  - 📸 Captures screenshots and analyzes them with GitHub Models multimodal AI.
+  - 📝 Updates the blog with live panda activity reports and maintains a running log.
+
 ---
 
 ## ⚡️ Quick Setup
@@ -44,6 +50,7 @@ This repository demonstrates how to use **GitHub Models** within GitHub Actions 
    - **AI Code Complexity Analyzer**: Runs automatically on pushes to JavaScript files
    - **AI PR Description Generator**: Runs automatically when pull requests are opened/updated
    - **AI Project Summary Generator**: Runs on pushes to main branch or manually via GitHub Actions tab → "Run workflow"
+   - **Panda Cam AI Monitor**: Runs automatically every 30 minutes during zoo hours (9 AM - 6 PM EST) or manually
 
 3. **📄 (Optional) Environment Variables**
    - See `.env.example` for reference, but do not commit real secrets.
