@@ -22,6 +22,7 @@ jobs:
 
     - name: Analyze with AI
       run: |
+        set -euo pipefail
         # Initialize results file
         echo "# 🤖 AI Code Complexity Analysis" > analysis_results.md
         echo "" >> analysis_results.md
@@ -30,11 +31,17 @@ jobs:
         
         # Analyze each file
         for file in ${{ steps.find_files.outputs.files }}; do
+          if [ ! -s "$file" ]; then
+            echo "Skipping empty or unreadable file: $file"
+            continue
+          fi
           echo "Analyzing $file..."
-          
           # Get file content (first 100 lines)
           CONTENT=$(head -n 100 "$file" | jq -Rs .)
-          
+          if [ -z "$CONTENT" ]; then
+            echo "Skipping file with empty content: $file"
+            continue
+          fi
           # Call AI API
           ANALYSIS=$(curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
             -H "Content-Type: application/json" \
@@ -54,7 +61,6 @@ jobs:
               \"temperature\": 0.3,
               \"max_tokens\": 200
             }" | jq -r '.choices[0].message.content')
-          
           # Append to results
           echo "## File: \`$file\`" >> analysis_results.md
           echo "" >> analysis_results.md
