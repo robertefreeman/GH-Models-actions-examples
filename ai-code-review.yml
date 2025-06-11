@@ -1,0 +1,87 @@
+name: AI Code Complexity Analyzer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Find JavaScript files
+      id: find_files
+      run: |
+        # Find all JS files (limit to 5 for demo)
+        FILES=$(find . -name "*.js" -type f | head -5 | tr '\n' ' ')
+        echo "files=$FILES" >> $GITHUB_OUTPUT
+
+    - name: Analyze with AI
+      run: |
+        # Initialize results file
+        echo "# 🤖 AI Code Complexity Analysis" > analysis_results.md
+        echo "" >> analysis_results.md
+        echo "Generated on: $(date)" >> analysis_results.md
+        echo "" >> analysis_results.md
+        
+        # Analyze each file
+        for file in ${{ steps.find_files.outputs.files }}; do
+          echo "Analyzing $file..."
+          
+          # Get file content (first 100 lines)
+          CONTENT=$(head -n 100 "$file" | jq -Rs .)
+          
+          # Call AI API
+          ANALYSIS=$(curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
+            -d "{
+              \"model\": \"gpt-3.5-turbo\",
+              \"messages\": [
+                {
+                  \"role\": \"system\",
+                  \"content\": \"Analyze the code complexity and provide a brief assessment including: complexity score (1-10), main concerns, and improvement suggestions. Be concise.\"
+                },
+                {
+                  \"role\": \"user\",
+                  \"content\": \"Analyze this code:\\n\\n$CONTENT\"
+                }
+              ],
+              \"temperature\": 0.3,
+              \"max_tokens\": 200
+            }" | jq -r '.choices[0].message.content')
+          
+          # Append to results
+          echo "## File: \`$file\`" >> analysis_results.md
+          echo "" >> analysis_results.md
+          echo "$ANALYSIS" >> analysis_results.md
+          echo "" >> analysis_results.md
+          echo "---" >> analysis_results.md
+          echo "" >> analysis_results.md
+        done
+
+    - name: Upload analysis results
+      uses: actions/upload-artifact@v4
+      with:
+        name: ai-analysis
+        path: analysis_results.md
+
+    - name: Comment on commit (optional)
+      if: github.event_name == 'push'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const analysis = fs.readFileSync('analysis_results.md', 'utf8');
+          
+          // Create a comment on the commit
+          await github.rest.repos.createCommitComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            commit_sha: context.sha,
+            body: analysis
+          });
