@@ -63,7 +63,7 @@ jobs:
             "$(cat system_prompt.txt)" \
             "$(cat user_prompt.txt | tr '\n' ' ' | sed 's/"/\\"/g')" > request.json
           
-          # Call API and debug the response
+          # Call API and save response
           echo "Calling API..."
           curl -s -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
             -H "Content-Type: application/json" \
@@ -74,21 +74,8 @@ jobs:
           cat api_response.json
           echo "---"
           
-          # Try to extract content without jq
-          if command -v python3 &> /dev/null; then
-            ANALYSIS=$(python3 -c "
-import json, sys
-try:
-    with open('api_response.json', 'r') as f:
-        data = json.load(f)
-    content = data.get('choices', [{}])[0].get('message', {}).get('content', 'Analysis failed')
-    print(content)
-except Exception as e:
-    print('Python parsing failed: ' + str(e))
-")
-          else
-            ANALYSIS="Analysis failed - no parser available"
-          fi
+          # Simple extraction using grep and sed (avoiding jq)
+          ANALYSIS=$(grep -o '"content":"[^"]*"' api_response.json | head -1 | sed 's/"content":"//' | sed 's/"$//' || echo "Analysis failed")
           # Append to results
           echo "## File: \`$file\`" >> analysis_results.md
           echo "" >> analysis_results.md
