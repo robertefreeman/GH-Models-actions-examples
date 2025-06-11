@@ -31,9 +31,11 @@ This repository demonstrates how to use **GitHub Models** within GitHub Actions 
   - 🤖 Analyzes codebase structure and generates intelligent documentation for AI coding agents.
 
 - **Panda Cam AI Monitor** (`panda-cam-monitor.yml`):
-  - 🐼 Uses computer vision to monitor the National Zoo panda webcam every 30 minutes.
-  - 📸 Captures screenshots and analyzes them with GitHub Models multimodal AI.
-  - 📝 Updates the blog with live panda activity reports and maintains a running log.
+  - 🔍 **Smart Webcam Monitoring** - Advanced connection testing with multiple zoo endpoints and realistic browser headers
+  - 🎨 **Dynamic Status Images** - Creates informative visual status updates when webcam feeds are unavailable
+  - 🤖 **AI Status Analysis** - Uses GitHub Models to analyze connection status and provide user-friendly explanations
+  - 📝 **Automated Blog Updates** - Updates the project blog with current webcam status and monitoring insights
+  - ⏰ **Scheduled Monitoring** - Runs every 30 minutes during zoo hours (9 AM - 6 PM EST) with intelligent error handling
 
 ---
 
