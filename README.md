@@ -1,29 +1,30 @@
 # GitHub Models Actions Examples 🚀🤖
 
-[![AI Code Complexity Analyzer](https://github.com/your-org/your-repo/actions/workflows/ai-code-review.yml/badge.svg)](../../actions/workflows/ai-code-review.yml)
-[![AI PR Description Generator](https://github.com/your-org/your-repo/actions/workflows/ai-pr-description.yml/badge.svg)](../../actions/workflows/ai-pr-description.yml)
-[![AI Project Summary Generator](https://github.com/your-org/your-repo/actions/workflows/ai-project-summary.yml/badge.svg)](../../actions/workflows/ai-project-summary.yml)
+[![AI Code Complexity Analyzer](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-code-review.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-code-review.yml)
+[![AI PR Description Generator](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-pr-description.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-pr-description.yml)
+[![AI Project Summary Generator](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml)
 
 <!--
 These badges show the status of the last workflow run (success or failure) for each workflow.
 -->
 
-This repository demonstrates how to use AI models (With instructiuon for using GitHub Models as the inference provider) within GitHub Actions workflows. The examples show how to automate code review and pull request description generation using AI!
+This repository demonstrates how to use **GitHub Models** within GitHub Actions workflows for intelligent code automation. The examples show practical implementations of GitHub's hosted AI models for code analysis, pull request enhancement, and project documentation generation - all running natively within your GitHub Actions pipelines!
 
 ---
 
 ## ✨ Workflows Included
 
 - **AI Code Complexity Analyzer** (`ai-code-review.yml`):
-  - 🧠 Analyzes JavaScript files for code complexity using an AI model.
-  - 💬 Posts a summary of the analysis as a commit comment.
+  - 🧠 Analyzes JavaScript files for code complexity using GitHub Models.
+  - 💬 Posts detailed analysis reports with complexity insights and recommendations.
 
 - **AI PR Description Generator** (`ai-pr-description.yml`):
-  - 📝 Generates informative pull request descriptions based on code diffs using an AI model.
+  - 📝 Generates informative pull request descriptions from code diffs using GitHub Models.
+  - 🎯 Automatically enhances PRs with AI-powered summaries and impact analysis.
 
 - **AI Project Summary Generator** (`ai-project-summary.yml`):
-  - 📊 Creates a comprehensive project summary (`projectsummary.md`) for AI coding agents.
-  - 🤖 Analyzes project structure, key files, and generates documentation to help AI understand the codebase.
+  - 📊 Creates comprehensive project documentation (`projectsummary.md`) using GitHub Models.
+  - 🤖 Analyzes codebase structure and generates intelligent documentation for AI coding agents.
 
 ---
 
@@ -31,10 +32,10 @@ This repository demonstrates how to use AI models (With instructiuon for using G
 
 1. **🔐 Add GitHub Secrets**
    - Go to your repository Settings → Secrets and variables → Actions.
-   - Add the following secrets:
-     - `OPENAI_API_KEY`: Your OpenAI API key.
-     - `OPENAI_API_ENDPOINT`: The OpenAI-compatible API endpoint (e.g., `https://models.github.ai/inference`).
-     - `OPENAI_MODEL`: The model name to use (e.g., `gpt-3.5-turbo`).
+   - Add the following secrets for GitHub Models API access:
+     - `OPENAI_API_KEY`: Your GitHub Personal Access Token (PAT).
+     - `OPENAI_API_ENDPOINT`: The GitHub Models API endpoint (e.g., `https://models.inference.ai.azure.com`).
+     - `OPENAI_MODEL`: The GitHub Models model name (e.g., `gpt-4o`, `gpt-3.5-turbo`).
 
 2. **🎮 Running the Workflows**
    - **AI Code Complexity Analyzer**: Runs automatically on pushes to JavaScript files
@@ -60,24 +61,24 @@ To use GitHub Models APIs in this repository, you need a GitHub Personal Access 
    - For GitHub Models, use the endpoint: `https://models.inference.ai.azure.com` as your `OPENAI_API_ENDPOINT`.
    - Alternative GitHub Models endpoints may include `https://models.ai.azure.com` or check your GitHub Models dashboard for the correct URL.
 
-3. **Get the Model Name:**
-   - For GitHub Models, you can use model names like `openai/gpt-4.1` or `deepseek/DeepSeek-V3-0324`.
-   - Set this as your `OPENAI_MODEL` secret.
+3. **Choose Your GitHub Models Model:**
+   - GitHub Models supports various AI models: `gpt-4o`, `gpt-3.5-turbo`, `claude-3-sonnet`, etc.
+   - Set your chosen model name as the `OPENAI_MODEL` secret.
 
-4. **Add Secrets to Your Fork:**
-   - In your forked repository, go to **Settings → Secrets and variables → Actions**.
-   - Click **New repository secret** for each of the following:
-     - `OPENAI_API_KEY`: Paste your PAT here.
-     - `OPENAI_API_ENDPOINT`: Use `https://models.inference.ai.azure.com`.
-     - `OPENAI_MODEL`: Use your chosen model name (e.g., `openai/gpt-4.1`).
+4. **Add Secrets to Your Repository:**
+   - In your repository, go to **Settings → Secrets and variables → Actions**.
+   - Add these repository secrets:
+     - `OPENAI_API_KEY`: Your GitHub PAT
+     - `OPENAI_API_ENDPOINT`: `https://models.inference.ai.azure.com`
+     - `OPENAI_MODEL`: Your chosen model (e.g., `gpt-4o`)
 
-Once these secrets are set, the workflows in this repo will use your GitHub Models API access!
+Once configured, your GitHub Actions workflows will use GitHub Models for intelligent automation!
 
 ---
 
 ## 🎯 Purpose
 
-This repo is for demonstration and educational purposes, showing how to integrate large language models into GitHub Actions workflows for automation and code intelligence.
+This repository showcases practical examples of integrating **GitHub Models** into GitHub Actions workflows for intelligent code automation and analysis. Perfect for demonstrating how to leverage GitHub's hosted AI models within your CI/CD pipelines!
 
 ---
 
