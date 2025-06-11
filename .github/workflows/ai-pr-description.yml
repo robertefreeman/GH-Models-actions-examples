@@ -37,7 +37,7 @@ jobs:
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
           -d '{
-            "model": "gpt-3.5-turbo",
+            "model": "${{ env.OPENAI_MODEL }}",
             "messages": [
               {
                 "role": "system",
