@@ -15,7 +15,7 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
       issues: write
     
@@ -127,6 +127,24 @@ jobs:
       with:
         name: ai-analysis
         path: analysis_results.md
+
+    - name: Commit analysis results to repo
+      run: |
+        # Configure git
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        # Create analysis directory if it doesn't exist
+        mkdir -p analysis_reports
+        
+        # Move the analysis file with timestamp
+        TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+        mv analysis_results.md "analysis_reports/code_analysis_${TIMESTAMP}.md"
+        
+        # Add and commit the file
+        git add analysis_reports/
+        git commit -m "Add AI code complexity analysis - ${TIMESTAMP}" || echo "No changes to commit"
+        git push || echo "Failed to push - check repository permissions"
 
     - name: Comment on commit (optional)
       if: github.event_name == 'push'
