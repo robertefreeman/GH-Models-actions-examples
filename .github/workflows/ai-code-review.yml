@@ -77,7 +77,7 @@ jobs:
           cat request.json
           echo ""
           
-          HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
+          HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/chat/completions" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
             -d @request.json -o api_response.json)
@@ -90,7 +90,7 @@ jobs:
           # Check if we got a successful response
           if [ "$HTTP_STATUS" != "200" ]; then
             if grep -q '"code":"404"' api_response.json; then
-              ANALYSIS="❌ API Error 404: The endpoint path '/v1/chat/completions' was not found. Please check your OPENAI_API_ENDPOINT secret. For GitHub Models, try 'https://models.inference.ai.azure.com' or the correct endpoint from your GitHub Models dashboard."
+              ANALYSIS="❌ API Error 404: The endpoint path '/chat/completions' was not found. Please check your OPENAI_API_ENDPOINT secret. For GitHub Models, try 'https://models.inference.ai.azure.com' or the correct endpoint from your GitHub Models dashboard."
             else
               ANALYSIS="❌ API call failed with HTTP status $HTTP_STATUS. Check your API endpoint and credentials in repository secrets."
             fi
