@@ -1,4 +1,4 @@
-name: AI PR Description Generator
+name: AI PR Description Generator v2
 
 on:
   pull_request:
@@ -8,6 +8,7 @@ jobs:
   generate-description:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     
     steps:
@@ -19,41 +20,74 @@ jobs:
     - name: Get PR diff
       id: diff
       run: |
+        set -euo pipefail
         # Get the diff between the PR branch and base branch
         git diff ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} > pr_diff.txt
         
         # Limit diff size to avoid token limits
         head -n 500 pr_diff.txt > pr_diff_limited.txt
         
-        # Escape the diff for JSON
-        DIFF=$(cat pr_diff_limited.txt | jq -Rs .)
-        echo "diff=$DIFF" >> $GITHUB_OUTPUT
+        echo "PR Diff (first 10 lines):"
+        head -n 10 pr_diff_limited.txt
+        echo "---"
 
     - name: Generate PR description with AI
       id: ai_description
       run: |
-        # Call OpenAI-compatible API
-        RESPONSE=$(curl -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/v1/chat/completions" \
+        set -euo pipefail
+        
+        # Create prompts in separate files to avoid escaping issues
+        echo "You are a helpful assistant that generates concise, informative pull request descriptions based on code diffs. Include a summary, key changes, and any potential impacts. Be concise." > system_prompt.txt
+        echo "Generate a pull request description for the following code diff:" > user_prompt.txt
+        cat pr_diff_limited.txt >> user_prompt.txt
+        
+        # Create JSON using printf to avoid escaping issues
+        printf '{"model":"%s","messages":[{"role":"system","content":"%s"},{"role":"user","content":"%s"}],"temperature":0.7,"max_tokens":500}' \
+          "${{ secrets.OPENAI_MODEL }}" \
+          "$(cat system_prompt.txt)" \
+          "$(cat user_prompt.txt | tr '\n' ' ' | sed 's/"/\\"/g')" > request.json
+        
+        # Call API and save response
+        echo "Calling AI API..."
+        echo "Endpoint: ${{ secrets.OPENAI_API_ENDPOINT }}"
+        echo "Model: ${{ secrets.OPENAI_MODEL }}"
+        
+        HTTP_STATUS=$(curl -s -w "%{http_code}" -X POST "${{ secrets.OPENAI_API_ENDPOINT }}/chat/completions" \
           -H "Content-Type: application/json" \
           -H "Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}" \
-          -d '{
-            "model": "${{ secrets.OPENAI_MODEL }}",
-            "messages": [
-              {
-                "role": "system",
-                "content": "You are a helpful assistant that generates concise, informative pull request descriptions based on code diffs. Include a summary, key changes, and any potential impacts."
-              },
-              {
-                "role": "user",
-                "content": "Generate a pull request description for the following diff:\n\n${{ steps.diff.outputs.diff }}"
-              }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 500
-          }')
+          -d @request.json -o api_response.json)
         
-        # Extract the description from the response
-        DESCRIPTION=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+        echo "HTTP Status: $HTTP_STATUS"
+        echo "API Response:"
+        cat api_response.json
+        echo "---"
+        
+        # Check if we got a successful response
+        if [ "$HTTP_STATUS" != "200" ]; then
+          if grep -q '"code":"404"' api_response.json; then
+            DESCRIPTION="❌ API Error 404: The endpoint path '/chat/completions' was not found. Please check your OPENAI_API_ENDPOINT secret."
+          else
+            DESCRIPTION="❌ API call failed with HTTP status $HTTP_STATUS. Check your API endpoint and credentials in repository secrets."
+          fi
+        elif grep -q "<!DOCTYPE html>" api_response.json; then
+          DESCRIPTION="❌ Received HTML instead of JSON. This might be a Cloudflare challenge or incorrect endpoint."
+        elif grep -q '"error"' api_response.json; then
+          ERROR_MSG=$(grep -o '"message"[^"]*"[^"]*"' api_response.json | sed 's/"message"[^"]*"//' | sed 's/"$//' | sed 's/^"//')
+          DESCRIPTION="❌ API Error: $ERROR_MSG"
+        else
+          # Try to extract the content and convert \n back to newlines
+          DESCRIPTION=$(grep -o '"content":"[^"]*"' api_response.json | head -1 | sed 's/"content":"//' | sed 's/"$//' | sed 's/\\n/\n/g')
+          
+          # If grep failed, try a different approach
+          if [ -z "$DESCRIPTION" ]; then
+            DESCRIPTION=$(cat api_response.json | sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1 | sed 's/\\n/\n/g')
+          fi
+          
+          # Final fallback
+          if [ -z "$DESCRIPTION" ]; then
+            DESCRIPTION="❌ Could not parse valid API response - see workflow logs for details"
+          fi
+        fi
         
         # Save to file to handle multi-line content
         echo "$DESCRIPTION" > pr_description.txt
@@ -61,19 +95,25 @@ jobs:
     - name: Update PR description
       uses: actions/github-script@v7
       with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
           const fs = require('fs');
-          const description = fs.readFileSync('pr_description.txt', 'utf8');
-          
-          const currentBody = context.payload.pull_request.body || '';
-          const aiSection = `## 🤖 AI-Generated Summary\n\n${description}\n\n---\n\n`;
-          
-          // Prepend AI description to existing body
-          const newBody = aiSection + currentBody;
-          
-          await github.rest.pulls.update({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            pull_number: context.payload.pull_request.number,
-            body: newBody
-          });
+          try {
+            const description = fs.readFileSync('pr_description.txt', 'utf8');
+            
+            const currentBody = context.payload.pull_request.body || '';
+            const aiSection = `## 🤖 AI-Generated Summary\n\n${description}\n\n---\n\n`;
+            
+            // Prepend AI description to existing body
+            const newBody = aiSection + currentBody;
+            
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              body: newBody
+            });
+          } catch (error) {
+            console.log('Failed to update PR description:', error.message);
+            console.log('AI analysis saved to workflow logs instead.');
+          }
