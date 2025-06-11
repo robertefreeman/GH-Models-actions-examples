@@ -7,7 +7,7 @@
 These badges show the status of the last workflow run (success or failure) for each workflow.
 -->
 
-This repository demonstrates how to use AI models (With instructiuon for using GitHub Models as the inference provider) within GitHub Actions workflows. The examples show how to automate code review and pull request description generation using AI!
+This repository demonstrates how to use AI models (With instructiuon for using GitHub Models as the inference provider) within GitHub Actions workflows. The examples show how to automate code review and pull request description generation using AI.
 
 ---
 
