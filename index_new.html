@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bringing AI Intelligence to Your GitHub Workflows | GitHub Models + Actions</title>
+    <meta name="description" content="A practical guide to integrating GitHub Models with GitHub Actions for intelligent CI/CD automation">
+    <style>
+        :root {
+            --color-canvas-default: #ffffff;
+            --color-canvas-subtle: #f6f8fa;
+            --color-border-default: #d0d7de;
+            --color-border-muted: #d8dee4;
+            --color-fg-default: #24292f;
+            --color-fg-muted: #656d76;
+            --color-accent-emphasis: #0969da;
+            --color-success-emphasis: #1a7f37;
+            --color-attention-emphasis: #9a6700;
+            --color-danger-emphasis: #cf222e;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--color-fg-default);
+            background-color: var(--color-canvas-default);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .blog-header {
+            border-bottom: 1px solid var(--color-border-default);
+            padding-bottom: 32px;
+            margin-bottom: 32px;
+        }
+
+        .blog-title {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin: 0 0 16px 0;
+            color: var(--color-fg-default);
+            line-height: 1.2;
+        }
+
+        .blog-subtitle {
+            font-size: 1.25rem;
+            color: var(--color-fg-muted);
+            margin: 0 0 24px 0;
+            line-height: 1.4;
+        }
+
+        .blog-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+            color: var(--color-fg-muted);
+            font-size: 0.875rem;
+        }
+
+        .blog-date {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            margin: 0 4px;
+        }
+
+        .badge img {
+            height: 20px;
+        }
+
+        .blog-content {
+            max-width: none;
+        }
+
+        .blog-content h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin: 48px 0 16px 0;
+            color: var(--color-fg-default);
+            border-bottom: 1px solid var(--color-border-muted);
+            padding-bottom: 8px;
+        }
+
+        .blog-content h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin: 32px 0 12px 0;
+            color: var(--color-accent-emphasis);
+        }
+
+        .blog-content p {
+            margin: 16px 0;
+            color: var(--color-fg-default);
+        }
+
+        .blog-content ul, .blog-content ol {
+            margin: 16px 0;
+            padding-left: 24px;
+        }
+
+        .blog-content li {
+            margin: 8px 0;
+            color: var(--color-fg-default);
+        }
+
+        .blog-content strong {
+            font-weight: 600;
+            color: var(--color-fg-default);
+        }
+
+        .code-block {
+            background-color: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-default);
+            border-radius: 6px;
+            padding: 16px;
+            font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            margin: 16px 0;
+            color: var(--color-fg-default);
+        }
+
+        .highlight-box {
+            background-color: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-default);
+            border-radius: 6px;
+            padding: 16px;
+            margin: 24px 0;
+        }
+
+        .highlight-box h4 {
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            color: var(--color-accent-emphasis);
+        }
+
+        .use-case {
+            background-color: #f0f9ff;
+            border-left: 4px solid var(--color-accent-emphasis);
+            padding: 12px 16px;
+            margin: 16px 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .warning-box {
+            background-color: #fffbeb;
+            border-left: 4px solid var(--color-attention-emphasis);
+            padding: 16px;
+            margin: 24px 0;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .warning-box h4 {
+            margin: 0 0 8px 0;
+            color: var(--color-attention-emphasis);
+        }
+
+        .tags {
+            margin-top: 48px;
+            padding-top: 24px;
+            border-top: 1px solid var(--color-border-default);
+        }
+
+        .tag {
+            display: inline-block;
+            background-color: var(--color-canvas-subtle);
+            color: var(--color-accent-emphasis);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            margin: 4px 4px 4px 0;
+            text-decoration: none;
+        }
+
+        .tag:hover {
+            background-color: var(--color-accent-emphasis);
+            color: white;
+            text-decoration: none;
+        }
+
+        .cta-section {
+            background-color: var(--color-canvas-subtle);
+            border: 1px solid var(--color-border-default);
+            border-radius: 6px;
+            padding: 24px;
+            margin: 32px 0;
+            text-align: center;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            line-height: 1.25;
+            text-decoration: none;
+            border-radius: 6px;
+            border: 1px solid var(--color-border-default);
+            background-color: var(--color-canvas-default);
+            color: var(--color-fg-default);
+            transition: all 0.2s ease;
+            margin: 4px;
+        }
+
+        .btn:hover {
+            background-color: var(--color-canvas-subtle);
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background-color: var(--color-accent-emphasis);
+            color: white;
+            border-color: var(--color-accent-emphasis);
+        }
+
+        .btn-primary:hover {
+            background-color: #0860ca;
+            border-color: #0860ca;
+        }
+
+        .footer {
+            border-top: 1px solid var(--color-border-default);
+            padding-top: 24px;
+            margin-top: 48px;
+            text-align: center;
+            color: var(--color-fg-muted);
+            font-size: 0.875rem;
+        }
+
+        .emoji {
+            font-style: normal;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+            
+            .blog-title {
+                font-size: 2rem;
+            }
+            
+            .blog-subtitle {
+                font-size: 1.125rem;
+            }
+            
+            .blog-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="blog-header">
+            <h1 class="blog-title"><span class="emoji">🤖</span> Bringing AI Intelligence to Your GitHub Workflows</h1>
+            <p class="blog-subtitle">A Practical Guide to GitHub Models + Actions</p>
+            
+            <div class="blog-meta">
+                <div class="blog-date">
+                    <span class="emoji">📅</span>
+                    <span>June 11, 2025</span>
+                </div>
+                <div class="blog-date">
+                    <span class="emoji">👤</span>
+                    <span>by <a href="https://github.com/robertefreeman" style="color: var(--color-accent-emphasis);">@robertefreeman</a></span>
+                </div>
+                <div>
+                    <div class="badge">
+                        <img src="https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-code-review.yml/badge.svg" alt="AI Code Complexity Analyzer">
+                    </div>
+                    <div class="badge">
+                        <img src="https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-pr-description.yml/badge.svg" alt="AI PR Description Generator">
+                    </div>
+                    <div class="badge">
+                        <img src="https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml/badge.svg" alt="AI Project Summary Generator">
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <article class="blog-content">
+            <p>As developers, we're always looking for ways to make our workflows smarter and more efficient. Today, I want to share how I've been experimenting with combining GitHub Models (OpenAI-compatible endpoints) with GitHub Actions to add AI intelligence directly into CI/CD pipelines.</p>
+
+            <p>I've created a demonstration repository (<a href="https://github.com/robertefreeman/GH-Models-actions-examples">GH-Models-actions-examples</a>) with simple, reusable examples that show how easy it is to integrate AI capabilities into your existing workflows.</p>
+
+            <h2><span class="emoji">🤔</span> Why GitHub Models + Actions?</h2>
+
+            <p>GitHub Actions already automates our workflows, but by adding AI through GitHub Models, we can:</p>
+            <ul>
+                <li><span class="emoji">🔍</span> Automatically analyze code complexity</li>
+                <li><span class="emoji">📝</span> Generate meaningful PR descriptions</li>
+                <li><span class="emoji">📊</span> Create intelligent project documentation</li>
+                <li><span class="emoji">🎯</span> Add intelligent decision-making to CI/CD pipelines</li>
+            </ul>
+
+            <h2><span class="emoji">🛠️</span> The Examples I Built</h2>
+
+            <h3>1. AI-Powered PR Description Generator</h3>
+            <p>This workflow automatically generates comprehensive pull request descriptions by analyzing the code diff. When a PR is opened, it:</p>
+            <ul>
+                <li>Captures the git diff between branches</li>
+                <li>Sends it to an AI model for analysis</li>
+                <li>Updates the PR with a structured summary of changes</li>
+            </ul>
+            <div class="use-case">
+                <strong>Use case:</strong> Perfect for maintaining consistent PR documentation and helping reviewers quickly understand changes.
+            </div>
+
+            <h3>2. Code Complexity Analyzer</h3>
+            <p>This action demonstrates how AI can assess code quality on every push:</p>
+            <ul>
+                <li>Scans JavaScript files in the repository</li>
+                <li>Analyzes each file for complexity patterns</li>
+                <li>Generates a detailed report with improvement suggestions</li>
+                <li>Creates timestamped analysis reports</li>
+            </ul>
+            <div class="use-case">
+                <strong>Use case:</strong> Automated code review assistance and maintaining code quality standards.
+            </div>
+
+            <h3>3. AI Project Summary Generator</h3>
+            <p>A powerful example that creates comprehensive project documentation:</p>
+            <ul>
+                <li>Analyzes project structure and key files</li>
+                <li>Generates intelligent documentation for AI coding agents</li>
+                <li>Creates a <code>projectsummary.md</code> file automatically</li>
+                <li>Updates documentation when the codebase changes</li>
+            </ul>
+            <div class="use-case">
+                <strong>Use case:</strong> Helping AI coding assistants understand your project and providing automated documentation.
+            </div>
+
+            <h2><span class="emoji">💡</span> Key Technical Insights</h2>
+
+            <div class="highlight-box">
+                <h4><span class="emoji">🔑</span> Security First</h4>
+                <p>All API keys are stored as GitHub Secrets, never exposed in code:</p>
+                <div class="code-block">Authorization: Bearer ${{ secrets.OPENAI_API_KEY }}</div>
+            </div>
+
+            <div class="highlight-box">
+                <h4><span class="emoji">🎯</span> Flexible Architecture</h4>
+                <p>The examples use OpenAI-compatible endpoints, meaning you can:</p>
+                <ul>
+                    <li>Use GitHub Models directly</li>
+                    <li>Connect to Azure OpenAI Service</li>
+                    <li>Use any OpenAI-compatible endpoint (including self-hosted models)</li>
+                </ul>
+            </div>
+
+            <div class="highlight-box">
+                <h4><span class="emoji">🚀</span> Simple Integration</h4>
+                <p>Each example uses standard GitHub Actions features:</p>
+                <ul>
+                    <li><code>curl</code> for API calls</li>
+                    <li>Robust JSON parsing with <code>grep</code> and <code>sed</code></li>
+                    <li>GitHub's built-in actions for repository interactions</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h4><span class="emoji">⚠️</span> Important Considerations</h4>
+                <p>These examples are <strong>proof-of-concepts</strong> designed to demonstrate possibilities, not production-ready solutions. For production use, consider:</p>
+                <ul>
+                    <li><strong>Error handling:</strong> Add retry logic and graceful failure modes</li>
+                    <li><strong>Rate limiting:</strong> Implement proper API rate limit handling</li>
+                    <li><strong>Token limits:</strong> Manage input size to avoid exceeding model limits</li>
+                    <li><strong>Cost management:</strong> Monitor API usage to control costs</li>
+                    <li><strong>Response validation:</strong> Validate AI responses before using them</li>
+                </ul>
+            </div>
+
+            <h2><span class="emoji">🚀</span> Getting Started</h2>
+
+            <ol>
+                <li>Fork the repository</li>
+                <li>Add your API credentials as secrets:
+                    <ul>
+                        <li><code>OPENAI_API_KEY</code> (Your GitHub PAT)</li>
+                        <li><code>OPENAI_API_ENDPOINT</code> (GitHub Models endpoint)</li>
+                        <li><code>OPENAI_MODEL</code> (e.g., gpt-4o)</li>
+                    </ul>
+                </li>
+                <li>Enable Actions in your fork</li>
+                <li>Customize the prompts and workflows for your needs</li>
+            </ol>
+
+            <div class="cta-section">
+                <h3><span class="emoji">🎮</span> Try It Now</h3>
+                <p>Ready to add AI intelligence to your GitHub workflows?</p>
+                <a href="https://github.com/robertefreeman/GH-Models-actions-examples/fork" class="btn btn-primary">Fork the Repository</a>
+                <a href="https://github.com/robertefreeman/GH-Models-actions-examples" class="btn">View Source Code</a>
+            </div>
+
+            <h2><span class="emoji">🔮</span> What's Next?</h2>
+
+            <p>The possibilities are endless! You could extend these concepts to:</p>
+            <ul>
+                <li>Generate release notes from commit history</li>
+                <li>Automate documentation updates</li>
+                <li>Create intelligent issue triage systems</li>
+                <li>Build smart dependency update descriptions</li>
+                <li>Analyze security implications of changes</li>
+            </ul>
+
+            <h2><span class="emoji">💭</span> The Bottom Line</h2>
+
+            <p>Adding AI to GitHub Actions doesn't have to be complex. With just a few lines of YAML and some API calls, you can bring intelligent automation to your development workflow. These simple examples show that the barrier to entry is low, but the potential impact is high.</p>
+
+            <p><strong>Have you experimented with AI in your CI/CD pipelines? What use cases would you find most valuable?</strong></p>
+
+            <div class="tags">
+                <a href="#" class="tag">#GitHubActions</a>
+                <a href="#" class="tag">#AI</a>
+                <a href="#" class="tag">#DevOps</a>
+                <a href="#" class="tag">#Automation</a>
+                <a href="#" class="tag">#GitHubModels</a>
+                <a href="#" class="tag">#CICD</a>
+                <a href="#" class="tag">#DeveloperTools</a>
+            </div>
+        </article>
+
+        <footer class="footer">
+            <p>
+                <span class="emoji">🔗</span> 
+                Check out the examples: <a href="https://github.com/robertefreeman/GH-Models-actions-examples" style="color: var(--color-accent-emphasis);">github.com/robertefreeman/GH-Models-actions-examples</a>
+            </p>
+            <p style="margin-top: 8px;">
+                Made with <span class="emoji">❤️</span> by 
+                <a href="https://github.com/robertefreeman" style="color: var(--color-accent-emphasis);">@robertefreeman</a> 
+                for 
+                <a href="https://github.com/briancl2" style="color: var(--color-accent-emphasis);">@briancl2</a>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Auto-refresh workflow badges every 30 seconds
+        setInterval(function() {
+            const badges = document.querySelectorAll('.badge img');
+            badges.forEach(function(badge) {
+                const src = badge.src;
+                const timestamp = new Date().getTime();
+                badge.src = src.split('?')[0] + '?t=' + timestamp;
+            });
+        }, 30000);
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Add reading progress indicator
+        window.addEventListener('scroll', function() {
+            const article = document.querySelector('.blog-content');
+            const scrolled = window.scrollY;
+            const articleHeight = article.offsetHeight;
+            const windowHeight = window.innerHeight;
+            const progress = Math.min(scrolled / (articleHeight - windowHeight), 1);
+            
+            // Create progress bar if it doesn't exist
+            let progressBar = document.querySelector('.reading-progress');
+            if (!progressBar) {
+                progressBar = document.createElement('div');
+                progressBar.className = 'reading-progress';
+                progressBar.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 0%;
+                    height: 2px;
+                    background-color: var(--color-accent-emphasis);
+                    z-index: 1000;
+                    transition: width 0.1s ease;
+                `;
+                document.body.appendChild(progressBar);
+            }
+            
+            progressBar.style.width = (progress * 100) + '%';
+        });
+    </script>
+</body>
+</html>
