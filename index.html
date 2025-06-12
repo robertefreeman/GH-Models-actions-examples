@@ -265,6 +265,26 @@
                 gap: 8px;
             }
         }
+
+        /* Blog Banner Styles */
+        .blog-banner {
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin: 24px 0 32px 0;
+            display: block;
+            object-fit: cover;
+            border: 1px solid var(--color-border-muted);
+        }
+
+        @media (max-width: 768px) {
+            .blog-banner {
+                margin: 16px 0 24px 0;
+                border-radius: 6px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -298,6 +318,9 @@
                 </div>
             </div>
         </header>
+
+        <!-- Blog Banner Image -->
+        <img src="webpage/aiblog_post2.png" alt="AI and GitHub Actions Banner" class="blog-banner">
 
         <article class="blog-content">
             <!-- DYNAMIC CONTENT SECTION - This content is automatically updated from webpage/actionsblog.md -->
