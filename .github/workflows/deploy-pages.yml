@@ -32,6 +32,33 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
         
+      - name: Convert Markdown to HTML and Update Index
+        run: |
+          # Install pandoc for markdown conversion
+          sudo apt-get update && sudo apt-get install -y pandoc
+          
+          # Convert actionsblog.md to HTML
+          pandoc webpage/actionsblog.md -f markdown -t html --wrap=none > temp_blog_content.html
+          
+          # Create a temporary file with the new content
+          # Extract content between <!-- DYNAMIC CONTENT SECTION --> markers
+          sed -n '1,/<!-- DYNAMIC CONTENT SECTION - This content is automatically updated from webpage\/actionsblog.md -->/p' index.html > temp_index.html
+          echo '            <div id="dynamic-blog-content">' >> temp_index.html
+          
+          # Add the converted markdown content with proper indentation
+          sed 's/^/                /' temp_blog_content.html >> temp_index.html
+          
+          echo '            </div>' >> temp_index.html
+          
+          # Add the rest of the original file after the dynamic content section
+          sed -n '/<!-- END DYNAMIC CONTENT SECTION -->/,$p' index.html >> temp_index.html
+          
+          # Replace the original with the updated content
+          mv temp_index.html index.html
+          
+          # Clean up temporary files
+          rm -f temp_blog_content.html
+        
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
