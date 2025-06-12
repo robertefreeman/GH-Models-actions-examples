@@ -5,6 +5,7 @@
 [![AI Project Summary Generator](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/ai-project-summary.yml)
 [![Panda Cam AI Monitor](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/panda-cam-monitor.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/panda-cam-monitor.yml)
 [![GitHub Pages](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/deploy-pages.yml)
+[![CodeQL](https://github.com/robertefreeman/GH-Models-actions-examples/actions/workflows/codeql.yml/badge.svg)](https://github.com/robertefreeman/GH-Models-actions-examples/security/code-scanning)
 
 > 🌐 **Live Demo:** [View the GitHub Pages site](https://robertefreeman.github.io/GH-Models-actions-examples/)
 
