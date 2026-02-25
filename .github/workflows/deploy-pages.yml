@@ -1,13 +1,6 @@
 name: Deploy GitHub Pages
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'index.html'
-      - 'webpage/actionsblog.md'
-      - '_config.yml'
-      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
 permissions:
