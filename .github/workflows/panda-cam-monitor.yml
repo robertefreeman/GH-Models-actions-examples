@@ -1,9 +1,6 @@
 name: Panda Cam AI Monitor
 
 on:
-  schedule:
-    # Run every 30 minutes during zoo hours (9 AM - 6 PM EST)
-    - cron: '*/30 13-22 * * *'  # UTC time
   workflow_dispatch:
 
 jobs:
